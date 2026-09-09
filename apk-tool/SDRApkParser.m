@@ -114,7 +114,9 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
         if (size < headerSize || off + size > _len) break;
 
         if (type == SDR_CHUNK_STRING_POOL) {
-            [self parseStringPool:off stringsOut:&_strings];
+            NSArray<NSString *> *poolStrings = nil;
+            [self parseStringPool:off stringsOut:&poolStrings];
+            _strings = poolStrings;
         } else if (type == SDR_CHUNK_START_ELEMENT) {
             SDRXmlElement *el = [self parseStartElement:off];
             if (el) {

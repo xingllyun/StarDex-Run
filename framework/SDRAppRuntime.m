@@ -65,10 +65,14 @@ static NSString *SDRDescriptorFromClassName(NSString *className, NSString *packa
                   error:(NSError **)errorOut {
     NSMutableArray<NSString *> *steps = [NSMutableArray array];
 
-    // 1. 读取 APK
-    NSData *apkData = [NSData dataWithContentsOfFile:apkPath];
+    // 1. 读取 APK（映射式，避免大包全量驻留内存）
+    NSError *readError = nil;
+    NSData *apkData = [NSData dataWithContentsOfFile:apkPath
+                                             options:NSDataReadingMappedIfSafe
+                                               error:&readError];
     if (apkData.length == 0) {
-        if (errorOut) *errorOut = SDRRuntimeError(@"APK 文件不可读");
+        if (errorOut) *errorOut = SDRRuntimeError(
+            [NSString stringWithFormat:@"APK 文件不可读：%@", readError.localizedDescription ?: @"空文件"]);
         return;
     }
     SDRZipArchive *zip = [[SDRZipArchive alloc] initWithData:apkData error:errorOut];

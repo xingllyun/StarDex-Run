@@ -187,8 +187,8 @@ struct AppDetailView: View {
                     row("权限数量", "\(app.permissionCount)")
                     row("DEX 文件", "\(app.dexCount)")
                     row("Activity", "\(app.activityCount)")
-                    row("最低系统", "Android \(app.info.minSdkVersion)")
-                    row("目标系统", "Android \(app.info.targetSdkVersion)")
+                    row("最低系统", androidVersionLabel(api: app.info.minSdkVersion))
+                    row("目标系统", androidVersionLabel(api: app.info.targetSdkVersion))
                 }
                 Section {
                     Button("启动") {
@@ -226,4 +226,45 @@ struct AppDetailView: View {
 struct IdentifiableString: Identifiable {
     let id = UUID()
     let value: String
+}
+
+// API 等级 → Android 版本名映射（API 0 表示 Manifest 未声明/未解析）。
+func androidVersionLabel(api: UInt32) -> String {
+    let name: String
+    switch api {
+    case 0: name = "未知"
+    case 1: name = "1.0"
+    case 2: name = "1.1"
+    case 3: name = "1.5"
+    case 4: name = "1.6"
+    case 5...8: name = "2.0–2.2"
+    case 9: name = "2.3"
+    case 10: name = "2.3.3"
+    case 11...13: name = "3.x"
+    case 14: name = "4.0"
+    case 15: name = "4.0.3"
+    case 16: name = "4.1"
+    case 17: name = "4.2"
+    case 18: name = "4.3"
+    case 19: name = "4.4"
+    case 20: name = "4.4W"
+    case 21: name = "5.0"
+    case 22: name = "5.1"
+    case 23: name = "6.0"
+    case 24: name = "7.0"
+    case 25: name = "7.1"
+    case 26: name = "8.0"
+    case 27: name = "8.1"
+    case 28: name = "9"
+    case 29: name = "10"
+    case 30: name = "11"
+    case 31: name = "12"
+    case 32: name = "12L"
+    case 33: name = "13"
+    case 34: name = "14"
+    case 35: name = "15"
+    case 36: name = "16"
+    default: name = "API \(api)"
+    }
+    return api == 0 ? "未知" : "Android \(name) (API \(api))"
 }

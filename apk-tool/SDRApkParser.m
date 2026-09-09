@@ -80,6 +80,7 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
 @implementation SDRBinaryXml {
     const uint8_t *_base;
     NSUInteger _len;
+    const uint8_t *_poolEnd;   // 字符串池数据边界（防越界读导致闪退）
 }
 
 - (uint16_t)u2:(const uint8_t *)p { return (uint16_t)(p[0] | (p[1] << 8)); }
@@ -141,36 +142,55 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
     return _strings[idx];
 }
 
-// 读取 string pool 内第 idx 个字符串。
+// 读取 string pool 内第 idx 个字符串（全路径带边界检查，杜绝越界闪退）。
 - (NSString *)poolString:(const uint8_t *)sp idx:(uint32_t)idx {
+    NSUInteger poolAvail0 = (NSUInteger)(_poolEnd - sp);
+    if (poolAvail0 < 32) return nil;   // chunk 头都不完整
     uint32_t stringCount = [self u4:sp + 8];
     uint32_t flags = [self u4:sp + 16];
     uint32_t stringsStart = [self u4:sp + 20];
     if (idx >= stringCount) return nil;
+    NSUInteger poolAvail = (NSUInteger)(_poolEnd - sp);
+    // 偏移表项本身的读取也要在池内
+    if ((uint64_t)28 + (uint64_t)idx * 4 + 4 > poolAvail) return nil;
     uint32_t strOff = [self u4:sp + 28 + idx * 4] + stringsStart;
+    if (strOff + 2 > poolAvail) return nil;   // 至少容纳长度前缀
     const uint8_t *s = sp + strOff;
+    NSUInteger avail = poolAvail - strOff;
     BOOL utf8 = (flags & 0x100) != 0;
     if (utf8) {
+        if (avail < 1) return nil;
         uint32_t len;
         uint8_t b0 = s[0];
         if (b0 & 0x80) {
+            if (avail < 3) return nil;
             len = ((b0 & 0x7F) << 8) | s[1];
-            s += 2;
+            s += 2; avail -= 2;
         } else {
             len = b0;
-            s += 1;
+            s += 1; avail -= 1;
         }
+        if (len > avail) len = (uint32_t)avail;
         return [[NSString alloc] initWithBytes:s length:len encoding:NSUTF8StringEncoding];
     } else {
+        if (avail < 2) return nil;
         uint32_t len = [self u2:s];
-        s += 2;
-        return [[NSString alloc] initWithBytes:s length:len * 2 encoding:NSUTF16LittleEndianStringEncoding];
+        s += 2; avail -= 2;
+        NSUInteger byteLen = (NSUInteger)len * 2;
+        if (byteLen > avail) byteLen = avail;
+        return [[NSString alloc] initWithBytes:s length:byteLen encoding:NSUTF16LittleEndianStringEncoding];
     }
 }
 
 - (void)parseStringPool:(NSUInteger)off stringsOut:(NSArray<__kindof NSString *> **)out {
     const uint8_t *sp = _base + off;
+    uint32_t poolSize = [self u4:sp + 4];
+    if (off + poolSize > _len) poolSize = (uint32_t)(_len - off);
+    _poolEnd = sp + poolSize;
     uint32_t stringCount = [self u4:sp + 8];
+    // 异常 stringCount 防御：每个字符串至少占用偏移表 4 字节
+    uint32_t maxCount = (poolSize > 28) ? (poolSize - 28) / 4 : 0;
+    if (stringCount > maxCount) stringCount = maxCount;
     NSMutableArray<NSString *> *res = [NSMutableArray arrayWithCapacity:stringCount];
     for (uint32_t i = 0; i < stringCount; i++) {
         [res addObject:[self poolString:sp idx:i] ?: @""];
@@ -179,7 +199,12 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
 }
 
 - (SDRXmlElement *)parseStartElement:(NSUInteger)off {
+    if (off + 36 > _len) return nil;   // 最小节点头都放不下
     const uint8_t *chunk = _base + off;
+    uint32_t chunkSize = [self u4:chunk + 4];
+    const uint8_t *chunkEnd = chunk + chunkSize;
+    if (chunkEnd > _base + _len) chunkEnd = _base + _len;
+
     // 节点头 16 字节后依次为 attrExt：ns/name/attributeStart/attributeSize/attributeCount/...
     uint32_t nsIdx = [self u4:chunk + 16];
     uint32_t nameIdx = [self u4:chunk + 20];
@@ -192,6 +217,7 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
     NSMutableDictionary<NSString *, SDRXmlAttribute *> *attrs = [NSMutableDictionary dictionary];
     const uint8_t *ap = chunk + 36;
     for (uint16_t i = 0; i < attributeCount; i++) {
+        if (ap + 20 > chunkEnd) break;   // 属性超出 chunk，截断防越界
         uint32_t aNs = [self u4:ap];
         uint32_t aName = [self u4:ap + 4];
         uint32_t aRawValue = [self u4:ap + 8];
@@ -265,14 +291,21 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
 }
 
 - (SDRApkInfo *)parseInfo:(NSError **)error {
-    // 1. 解析 AndroidManifest.xml
-    NSData *manifest = [_zip dataForEntryNamed:@"AndroidManifest.xml" error:error];
-    if (!manifest) return nil;
+    // 1. 解析 AndroidManifest.xml（异常兜底：任何未知结构问题降级为解析失败，绝不闪退）
+    @try {
+        NSData *manifest = [_zip dataForEntryNamed:@"AndroidManifest.xml" error:error];
+        if (!manifest) return nil;
 
-    SDRBinaryXml *xml = [[SDRBinaryXml alloc] initWithData:manifest error:error];
-    if (!xml || !xml.root) return nil;
+        SDRBinaryXml *xml = [[SDRBinaryXml alloc] initWithData:manifest error:error];
+        if (!xml || !xml.root) return nil;
 
-    [self fillManifestFromElement:xml.root];
+        [self fillManifestFromElement:xml.root];
+    } @catch (NSException *exception) {
+        if (error) *error = [NSError errorWithDomain:@"SDRApkParser" code:101
+            userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Manifest 解析异常：%@",
+                                                    exception.reason ?: exception.name]}];
+        return nil;
+    }
 
     // 2. 枚举 DEX / SO / 资源 / 资产
     for (SDRZipEntry *e in _zip.entries) {
@@ -350,37 +383,51 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
     _info.providers = providers;
 }
 
-// 启发式寻找启动图标：优先高密度 mipmap ic_launcher，其次任意 ic_launcher 主图标，
-// 最后兜底 res 下任意 png（排除设置类图标，避免拿错）。
-- (nullable NSData *)resolveIcon {
-    // 1. 标准 mipmap/ic_launcher 各密度（含圆形图标）
-    NSMutableArray<NSString *> *candidates = [NSMutableArray array];
-    for (NSString *d in @[@"xxxhdpi", @"xxhdpi", @"xhdpi", @"hdpi", @"mdpi", @"ldpi"]) {
-        [candidates addObject:[NSString stringWithFormat:@"res/mipmap-%@/ic_launcher.png", d]];
-        [candidates addObject:[NSString stringWithFormat:@"res/mipmap-%@/ic_launcher_round.png", d]];
-        [candidates addObject:[NSString stringWithFormat:@"res/drawable-%@-v4/ic_launcher.png", d]];
-    }
-    for (NSString *c in candidates) {
-        NSData *d = [_zip dataForEntryNamed:c error:nil];
-        if (d.length) return d;
-    }
+// 根据路径密度给图标候选加分。
+static NSInteger SDRIconDensityBonus(NSString *path) {
+    NSString *p = path.lowercaseString;
+    if ([p containsString:@"xxxhdpi"]) return 30;
+    if ([p containsString:@"xxhdpi"]) return 25;
+    if ([p containsString:@"xhdpi"]) return 20;
+    if ([p containsString:@"hdpi"]) return 15;
+    if ([p containsString:@"mdpi"]) return 10;
+    if ([p containsString:@"nodpi"]) return 5;
+    return 0;
+}
 
-    // 2. 任意目录下 ic_launcher / ic_launcher_round 主图标
+// 启发式寻找启动图标：对 res/ 下所有图片按文件名 + 密度评分，取最高分。
+// 支持 png / webp(Android 8+ 常用) / jpg；排除设置类图标。
+- (nullable NSData *)resolveIcon {
+    NSString *bestName = nil;
+    NSInteger bestScore = -1;
     for (SDRZipEntry *e in _zip.entries) {
-        NSString *base = e.name.lastPathComponent.stringByDeletingPathExtension.lowercaseString;
+        NSString *n = e.name;
+        if (![n hasPrefix:@"res/"]) continue;
+        NSString *ext = n.pathExtension.lowercaseString;
+        if (![ext isEqualToString:@"png"] && ![ext isEqualToString:@"webp"] &&
+            ![ext isEqualToString:@"jpg"] && ![ext isEqualToString:@"jpeg"]) continue;
+        NSString *base = n.lastPathComponent.stringByDeletingPathExtension.lowercaseString;
+        if ([base containsString:@"settings"] || [base containsString:@"sym_def"]) continue;
+
+        NSInteger score = 10;
         if ([base isEqualToString:@"ic_launcher"] || [base isEqualToString:@"ic_launcher_round"]) {
-            if ([e.name hasSuffix:@".png"]) return [_zip dataForEntry:e error:nil];
+            score = 100;
+        } else if ([base hasPrefix:@"ic_launcher"]) {
+            score = 90;
+        } else if ([base isEqualToString:@"icon"] || [base isEqualToString:@"app_icon"]) {
+            score = 80;
+        } else if ([base containsString:@"launcher"]) {
+            score = 70;
+        } else if ([base containsString:@"logo"]) {
+            score = 50;
+        }
+        score += SDRIconDensityBonus(n);
+        if (score > bestScore) {
+            bestScore = score;
+            bestName = n;
         }
     }
-
-    // 3. 兜底：res 下任意 png（排除设置图标），按条目顺序取第一个
-    for (SDRZipEntry *e in _zip.entries) {
-        if (![e.name hasPrefix:@"res/"] || ![e.name hasSuffix:@".png"]) continue;
-        NSString *base = e.name.lastPathComponent.lowercaseString;
-        if ([base containsString:@"settings"] || [base containsString:@"sym_def"]) continue;
-        NSData *d = [_zip dataForEntry:e error:nil];
-        if (d.length) return d;
-    }
+    if (bestName) return [_zip dataForEntryNamed:bestName error:nil];
     return nil;
 }
 

@@ -65,7 +65,8 @@ final class AppState: ObservableObject {
 
         let data: Data
         do {
-            data = try Data(contentsOf: url)
+            // 映射式读取：大体积 APK 不全量驻留物理内存，降低内存峰值。
+            data = try Data(contentsOf: url, options: .mappedIfSafe)
         } catch {
             return .invalid("读取文件失败（无访问权限）：\(error.localizedDescription)")
         }
@@ -91,7 +92,10 @@ final class AppState: ObservableObject {
             return .invalid("无法解包 APK")
         }
         guard let info = try? parser.parseInfo() else {
-            return .invalid("无法解析 AndroidManifest.xml")
+            return .invalid("无法解析 AndroidManifest.xml（可能为非常规编译或加固残留结构）")
+        }
+        guard !info.packageName.isEmpty else {
+            return .invalid("Manifest 解析结果不完整（包名为空）")
         }
 
         // 4. 复制 APK 到沙盒，供「启动」执行时读取 DEX。

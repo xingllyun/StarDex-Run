@@ -8,6 +8,8 @@
 #ifndef SDROpcodes_h
 #define SDROpcodes_h
 
+#import <Foundation/Foundation.h>
+
 // Dalvik 字节码指令集枚举（DEX 035 / 038 / 039）。
 // 取值对应 DEX 指令单元（16bit）低字节的 opcode 值。
 typedef NS_ENUM(uint8_t, SDROpcode) {

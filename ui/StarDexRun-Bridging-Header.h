@@ -19,3 +19,4 @@
 #import "SDRApkSigner.h"
 #import "SDRSandboxDirectory.h"
 #import "SDRSandboxCache.h"
+#import "SDRAppRuntime.h"

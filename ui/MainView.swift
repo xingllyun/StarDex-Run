@@ -153,6 +153,28 @@ struct AppDetailView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    HStack(spacing: 16) {
+                        if let icon = app.icon {
+                            Image(uiImage: icon)
+                                .resizable()
+                                .frame(width: 64, height: 64)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        } else {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 64, height: 64)
+                                .overlay(Image(systemName: "app.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(.secondary))
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(app.displayTitle).font(.title3).bold().lineLimit(1)
+                            Text(app.packageName).font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
                 Section("基本信息") {
                     row("应用名称", app.displayTitle)
                     row("包名", app.packageName)
@@ -161,16 +183,18 @@ struct AppDetailView: View {
                     row("签名", app.signatureSummary)
                 }
                 Section("内容") {
+                    row("文件大小", app.formattedSize)
                     row("权限数量", "\(app.permissionCount)")
                     row("DEX 文件", "\(app.dexCount)")
-                    row("Activity", "\(app.info.activities.count)")
+                    row("Activity", "\(app.activityCount)")
+                    row("最低系统", "Android \(app.info.minSdkVersion)")
+                    row("目标系统", "Android \(app.info.targetSdkVersion)")
                 }
                 Section {
                     Button("启动") {
-                        appState.runningPackageName = app.packageName
-                        appState.isRunning = true
-                        appState.log.info("启动应用：\(app.packageName)", package: app.packageName)
+                        appState.launch(app)
                     }
+                    .disabled(appState.isRunning)
                     Button("导出运行日志") {
                         appState.log.info("导出日志（\(app.packageName)）共 \(appState.log.entries.count) 条", package: app.packageName)
                     }

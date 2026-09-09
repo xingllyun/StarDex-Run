@@ -119,6 +119,26 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
     return [self invokeMethod:m args:args];
 }
 
+- (SDRExecOutcome *)invokeInstanceMethod:(NSString *)methodName
+                              descriptor:(NSString *)descriptor
+                                  object:(SDRDexObject *)object
+                                    args:(NSArray<NSValue *> *)args {
+    if (!object || !object.clazz) {
+        return [SDRExecOutcome outcomeWithError:@"接收者对象无效"];
+    }
+    [self ensureClassInitialized:object.clazz];
+    SDRDexMethod *m = [_classLoader resolveMethod:methodName descriptor:descriptor inClass:object.clazz];
+    if (!m) {
+        return [SDRExecOutcome outcomeWithError:
+                [NSString stringWithFormat:@"找不到方法 %@%@", methodName, descriptor]];
+    }
+    [self resetInstructionCount];
+    NSMutableArray<NSValue *> *full = [NSMutableArray arrayWithCapacity:args.count + 1];
+    [full addObject:SDRValueWrap(SDRMakeObject((__bridge void *)object))];
+    [full addObjectsFromArray:args];
+    return [self invokeMethod:m args:full];
+}
+
 - (SDRExecOutcome *)invokeMethod:(SDRDexMethod *)method args:(NSArray<NSValue *> *)args {
     if (!method) return [SDRExecOutcome outcomeWithError:@"空方法"];
     if (method.isNative) {

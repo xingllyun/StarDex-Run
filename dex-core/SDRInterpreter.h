@@ -42,6 +42,12 @@ NS_ASSUME_NONNULL_BEGIN
                                inClass:(SDRDexClass *)clazz
                                   args:(NSArray<NSValue *> *)args;
 
+// 顶层入口：调用实例方法（自动完成类 <clinit> 初始化，首参为接收者）。
+- (SDRExecOutcome *)invokeInstanceMethod:(NSString *)methodName
+                              descriptor:(NSString *)descriptor
+                                  object:(SDRDexObject *)object
+                                    args:(NSArray<NSValue *> *)args;
+
 // 通用调用：args 为 SDRValueBox 数组（按 descriptor 顺序）。
 - (SDRExecOutcome *)invokeMethod:(SDRDexMethod *)method args:(NSArray<NSValue *> *)args;
 

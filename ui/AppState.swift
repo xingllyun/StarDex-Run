@@ -14,6 +14,8 @@ struct InstalledApp: Identifiable {
     let id = UUID()
     let info: SDRApkInfo
     let signatureSummary: String
+    let fileSize: Int64                    // APK 文件大小（字节）
+    let apkStoredPath: String              // 沙盒内 APK 副本路径（供运行执行读取）
 
     var packageName: String { info.packageName }
     var versionName: String { info.versionName }
@@ -21,7 +23,12 @@ struct InstalledApp: Identifiable {
     var versionCode: Int64 { info.versionCode }
     var icon: UIImage? { info.iconData.flatMap { UIImage(data: $0) } }
     var permissionCount: Int { info.permissions.count }
-    var dexCount: Int { info.dexFiles.count }
+    var dexCount: Int { max(info.dexFiles.count, 1) }
+    var activityCount: Int { info.activities.count }
+
+    var formattedSize: String {
+        ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
+    }
 }
 
 // 导入结果。
@@ -87,13 +94,63 @@ final class AppState: ObservableObject {
             return .invalid("无法解析 AndroidManifest.xml")
         }
 
-        let app = InstalledApp(info: info, signatureSummary: sigResult.summaryMessage)
+        // 4. 复制 APK 到沙盒，供「启动」执行时读取 DEX。
+        let container = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let apkDir = container.appendingPathComponent("apks", isDirectory: true)
+        var storedPath = ""
+        do {
+            try FileManager.default.createDirectory(at: apkDir, withIntermediateDirectories: true)
+            let storedURL = apkDir.appendingPathComponent("\(info.packageName).apk")
+            try data.write(to: storedURL, options: .atomic)
+            storedPath = storedURL.path
+        } catch {
+            return .invalid("无法保存 APK 副本：\(error.localizedDescription)")
+        }
+
+        let app = InstalledApp(info: info,
+                               signatureSummary: sigResult.summaryMessage,
+                               fileSize: Int64(data.count),
+                               apkStoredPath: storedPath)
         installedApps.append(app)
 
         // 准备沙盒目录。
         _ = SDRSandboxDirectory.shared().ensureDataRoot(forPackage: info.packageName)
-        log.info("导入成功：\(info.packageName)", package: info.packageName)
+        log.info("导入成功：\(info.packageName)（\(app.formattedSize)，\(info.activities.count) 个 Activity）", package: info.packageName)
         return .success(app)
+    }
+
+    // MARK: - 启动执行
+
+    func launch(_ app: InstalledApp) {
+        guard !isRunning else {
+            log.warn("已有应用运行中，无法重复启动", package: app.packageName)
+            return
+        }
+        isRunning = true
+        runningPackageName = app.packageName
+        log.info("正在启动 \(app.packageName)（DEX 解释执行）", package: app.packageName)
+
+        let runtime = SDRAppRuntime.shared()
+        DispatchQueue.global(qos: .userInitiated).async {
+            runtime.launchApk(atPath: app.apkStoredPath,
+                              packageName: app.packageName,
+                              completion: { summary, steps, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self.log.error("启动失败：\(error.localizedDescription)", package: app.packageName)
+                    } else {
+                        if let steps = steps, !steps.isEmpty {
+                            for step in steps { self.log.info(step, package: app.packageName) }
+                        }
+                        if let summary = summary, !summary.isEmpty {
+                            self.log.info(summary, package: app.packageName)
+                        }
+                    }
+                    self.isRunning = false
+                    self.runningPackageName = nil
+                }
+            })
+        }
     }
 
     // MARK: - 应用管理
@@ -101,6 +158,9 @@ final class AppState: ObservableObject {
     func delete(_ app: InstalledApp) {
         installedApps.removeAll { $0.id == app.id }
         _ = try? SDRSandboxDirectory.shared().removeDataRoot(forPackage: app.packageName)
+        if !app.apkStoredPath.isEmpty {
+            try? FileManager.default.removeItem(atPath: app.apkStoredPath)
+        }
         log.info("已删除：\(app.packageName)", package: app.packageName)
     }
 

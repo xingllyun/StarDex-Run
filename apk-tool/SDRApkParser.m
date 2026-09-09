@@ -319,8 +319,11 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
             if (min) _info.minSdkVersion = (uint32_t)[min.value intValue];
             if (tgt) _info.targetSdkVersion = (uint32_t)[tgt.value intValue];
         } else if ([name isEqualToString:@"application"]) {
-            NSString *label = [child attr:@"label"].value ?: _info.packageName ?: @"";
-            _info.appLabel = label;
+            // label 通常是资源引用（@0x...），骨架阶段无 resources.arsc 解码能力，
+            // 引用形label 归零，交给 UI 用包名兜底显示。
+            NSString *label = [child attr:@"label"].value;
+            if (!label.length || [label hasPrefix:@"@0x"]) label = @"";
+            _info.appLabel = label.length ? label : (_info.packageName ?: @"");
             NSMutableArray<NSString *> *acts = [NSMutableArray array];
             NSMutableArray<NSString *> *svcs = [NSMutableArray array];
             NSMutableArray<NSString *> *recvs = [NSMutableArray array];
@@ -347,26 +350,36 @@ static NSString *const kSDRAndroidNS = @"http://schemas.android.com/apk/res/andr
     _info.providers = providers;
 }
 
-// 启发式寻找启动图标：优先 ic_launcher，其次任意 png/jpg。
+// 启发式寻找启动图标：优先高密度 mipmap ic_launcher，其次任意 ic_launcher 主图标，
+// 最后兜底 res 下任意 png（排除设置类图标，避免拿错）。
 - (nullable NSData *)resolveIcon {
-    NSArray<NSString *> *candidates = @[
-        @"res/mipmap-xxxhdpi/ic_launcher.png",
-        @"res/mipmap-xxhdpi/ic_launcher.png",
-        @"res/mipmap-xhdpi/ic_launcher.png",
-        @"res/mipmap-hdpi/ic_launcher.png",
-        @"res/mipmap-mdpi/ic_launcher.png",
-        @"res/drawable/icon.png", @"res/drawable/app_icon.png"
-    ];
+    // 1. 标准 mipmap/ic_launcher 各密度（含圆形图标）
+    NSMutableArray<NSString *> *candidates = [NSMutableArray array];
+    for (NSString *d in @[@"xxxhdpi", @"xxhdpi", @"xhdpi", @"hdpi", @"mdpi", @"ldpi"]) {
+        [candidates addObject:[NSString stringWithFormat:@"res/mipmap-%@/ic_launcher.png", d]];
+        [candidates addObject:[NSString stringWithFormat:@"res/mipmap-%@/ic_launcher_round.png", d]];
+        [candidates addObject:[NSString stringWithFormat:@"res/drawable-%@-v4/ic_launcher.png", d]];
+    }
     for (NSString *c in candidates) {
         NSData *d = [_zip dataForEntryNamed:c error:nil];
         if (d.length) return d;
     }
-    // 兜底：任意 res 下 ic_launcher 前缀的 png
+
+    // 2. 任意目录下 ic_launcher / ic_launcher_round 主图标
     for (SDRZipEntry *e in _zip.entries) {
-        if ([e.name hasPrefix:@"res/"] && [e.name containsString:@"ic_launcher"] &&
-            [e.name hasSuffix:@".png"]) {
-            return [_zip dataForEntry:e error:nil];
+        NSString *base = e.name.lastPathComponent.stringByDeletingPathExtension.lowercaseString;
+        if ([base isEqualToString:@"ic_launcher"] || [base isEqualToString:@"ic_launcher_round"]) {
+            if ([e.name hasSuffix:@".png"]) return [_zip dataForEntry:e error:nil];
         }
+    }
+
+    // 3. 兜底：res 下任意 png（排除设置图标），按条目顺序取第一个
+    for (SDRZipEntry *e in _zip.entries) {
+        if (![e.name hasPrefix:@"res/"] || ![e.name hasSuffix:@".png"]) continue;
+        NSString *base = e.name.lastPathComponent.lowercaseString;
+        if ([base containsString:@"settings"] || [base containsString:@"sym_def"]) continue;
+        NSData *d = [_zip dataForEntry:e error:nil];
+        if (d.length) return d;
     }
     return nil;
 }

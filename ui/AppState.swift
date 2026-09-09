@@ -130,7 +130,7 @@ final class AppState: ObservableObject {
         runningPackageName = app.packageName
         log.info("正在启动 \(app.packageName)（DEX 解释执行）", package: app.packageName)
 
-        let runtime = SDRAppRuntime.shared()
+        let runtime = SDRAppRuntime.sharedInstance()
         DispatchQueue.global(qos: .userInitiated).async {
             runtime.launchApk(atPath: app.apkStoredPath,
                               packageName: app.packageName,

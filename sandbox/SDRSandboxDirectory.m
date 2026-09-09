@@ -75,7 +75,7 @@ static NSArray<NSString *> *SDR_StandardSubdirs(void) {
     // comps[0] 为包名，comps[1] 可能为 files/cache/databases 等。
     NSString *package = comps[0];
     NSString *rest = comps.count > 1 ? [NSString pathWithComponents:[comps subarrayWithRange:NSMakeRange(1, comps.count - 1)]] : @"";
-    return [_appsRoot stringByAppendingPathComponent:package stringByAppendingPathComponent:rest];
+    return [[_appsRoot stringByAppendingPathComponent:package] stringByAppendingPathComponent:rest];
 }
 
 @end

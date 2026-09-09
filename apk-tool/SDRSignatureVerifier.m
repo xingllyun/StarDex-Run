@@ -445,7 +445,7 @@ static NSArray<NSData *> *SDR_ExtractCertificates(NSData *pkcs7) {
         signedBytes = sf;
     }
 
-    SecCertificateRef cert = SecCertificateCreateWithData(NULL, (__bridge CFDataRef)self.certificateForVerify);
+    SecCertificateRef cert = SecCertificateCreateWithData(NULL, (__bridge CFDataRef)_certificateForVerify);
     if (!cert) return NO;
     SecKeyRef pubKey = SecCertificateCopyPublicKey(cert);
     if (!pubKey) { CFRelease(cert); return NO; }
@@ -479,17 +479,19 @@ static NSArray<NSData *> *SDR_ExtractCertificates(NSData *pkcs7) {
     SDRApkCertificateInfo *info = [SDRApkCertificateInfo new];
     info.commonName = CFBridgingRelease(SecCertificateCopySubjectSummary(cert));
 
-    NSArray *keys = @[(__bridge id)kSecOIDX509V1ValidityNotBefore,
-                      (__bridge id)kSecOIDX509V1ValidityNotAfter,
-                      (__bridge id)kSecOIDX509V1IssuerName,
-                      (__bridge id)kSecOIDX509V1SubjectName,
-                      (__bridge id)kSecOIDX509V1SerialNumber];
-    CFErrorRef cfErr = NULL;
-    NSDictionary *values = CFBridgingRelease(SecCertificateCopyValues(cert, (__bridge CFArrayRef)keys, &cfErr));
-    if (cfErr) { CFRelease(cfErr); CFRelease(cert); return info; }
+    // 序列号（iOS 11+）
+    CFErrorRef serr = NULL;
+    NSData *serial = CFBridgingRelease(SecCertificateCopySerialNumberData(cert, &serr));
+    if (serr) CFRelease(serr);
+    if (serial) info.serialNumber = [serial description];
 
-    info.notBefore = [self dateFromValues:values[(__bridge id)kSecOIDX509V1ValidityNotBefore]];
-    info.notAfter  = [self dateFromValues:values[(__bridge id)kSecOIDX509V1ValidityNotAfter]];
+    // 有效期：iOS 18+ 提供公开 API；更低版本无法便捷获取，跳过并视为有效。
+    if (@available(iOS 18.0, *)) {
+        CFDateRef nb = SecCertificateCopyNotValidBeforeDate(cert);
+        CFDateRef na = SecCertificateCopyNotValidAfterDate(cert);
+        if (nb) info.notBefore = CFBridgingRelease(nb);
+        if (na) info.notAfter = CFBridgingRelease(na);
+    }
 
     NSDate *now = [NSDate date];
     if (info.notBefore && info.notAfter) {
@@ -502,14 +504,6 @@ static NSArray<NSData *> *SDR_ExtractCertificates(NSData *pkcs7) {
     } else {
         info.withinValidityPeriod = YES;
     }
-
-    info.subject = [self dnString:values[(__bridge id)kSecOIDX509V1SubjectName]];
-    info.issuerCN = [self cnFromValues:values[(__bridge id)kSecOIDX509V1IssuerName]];
-    info.serialNumber = [self serialString:values[(__bridge id)kSecOIDX509V1SerialNumber]];
-
-    NSDictionary *subj = values[(__bridge id)kSecOIDX509V1SubjectName];
-    NSDictionary *issuer = values[(__bridge id)kSecOIDX509V1IssuerName];
-    info.selfSigned = [subj isKindOfClass:[NSDictionary class]] && [subj isEqual:issuer];
 
     // 缓存首个证书 DER 供 RSA 验签使用
     if (!_certificateForVerify) _certificateForVerify = [certDER copy];

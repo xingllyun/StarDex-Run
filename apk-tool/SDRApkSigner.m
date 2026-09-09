@@ -202,19 +202,30 @@ static uint32_t SDR_CRC32(NSData *d) {
     return (uint32_t)crc32(0L, Z_NULL, 0) ^ (uint32_t)crc32((uLong)crc32(0L, Z_NULL, 0), d.bytes, (uInt)d.length);
 }
 
-typedef struct {
-    NSString *name;
-    NSData *data;
-    uint32_t crc;
-    uint32_t offset;
-} SDRZipOutEntry;
+@interface SDRZipOutEntry : NSObject
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic, strong) NSData *data;
+@property (nonatomic, assign) uint32_t crc;
+@property (nonatomic, assign) uint32_t offset;
+@end
+
+@implementation SDRZipOutEntry
++ (instancetype)entryWithName:(NSString *)name data:(NSData *)data crc:(uint32_t)crc {
+    SDRZipOutEntry *e = [self new];
+    e.name = name;
+    e.data = data;
+    e.crc = crc;
+    e.offset = 0;
+    return e;
+}
+@end
 
 static NSData *SDR_WriteZip(NSArray<SDRZipOutEntry *> *entries) {
     NSMutableData *out = [NSMutableData data];
     NSMutableArray<SDRZipOutEntry *> *recs = [NSMutableArray array];
     uint32_t centralStart = 0;
 
-    for (SDRZipOutEntry e in entries) {
+    for (SDRZipOutEntry *e in entries) {
         uint32_t localOff = (uint32_t)out.length;
         NSData *nameData = [e.name dataUsingEncoding:NSUTF8StringEncoding];
         uint32_t crc = e.crc;
@@ -236,13 +247,12 @@ static NSData *SDR_WriteZip(NSArray<SDRZipOutEntry *> *entries) {
         [local appendData:e.data];
         [out appendData:local];
 
-        SDRZipOutEntry rec = e;
-        rec.offset = localOff;
-        [recs addObject:rec];
+        e.offset = localOff;
+        [recs addObject:e];
     }
 
     centralStart = (uint32_t)out.length;
-    for (SDRZipOutEntry e in recs) {
+    for (SDRZipOutEntry *e in recs) {
         NSData *nameData = [e.name dataUsingEncoding:NSUTF8StringEncoding];
         NSMutableData *central = [NSMutableData data];
         SDR_AppendLE32(central, 0x02014b50);
@@ -316,11 +326,11 @@ static NSData *SDR_WriteZip(NSArray<SDRZipOutEntry *> *entries) {
         if ([e.name hasPrefix:@"META-INF/"]) continue;
         NSData *data = [zip dataForEntry:e error:nil];
         if (!data) continue;
-        SDRZipOutEntry o = { e.name, data, SDR_CRC32(data), 0 };
+        SDRZipOutEntry *o = [SDRZipOutEntry entryWithName:e.name data:data crc:SDR_CRC32(data)];
         [sigEntries addObject:o];
     }
     // 按名排序，保证输出确定性
-    [sigEntries sortUsingComparator:^NSComparisonResult(SDRZipOutEntry a, SDRZipOutEntry b) {
+    [sigEntries sortUsingComparator:^NSComparisonResult(SDRZipOutEntry *a, SDRZipOutEntry *b) {
         return [a.name compare:b.name];
     }];
 
@@ -330,7 +340,7 @@ static NSData *SDR_WriteZip(NSArray<SDRZipOutEntry *> *entries) {
                      dataUsingEncoding:NSASCIIStringEncoding]];
     NSMutableArray<NSData *> *mfSections = [NSMutableArray array];
     for (NSUInteger i = 0; i < sigEntries.count; i++) {
-        SDRZipOutEntry e = sigEntries[i];
+        SDRZipOutEntry *e = sigEntries[i];
         NSString *b64 = SDR_Base64(SDR_SHA256(e.data));
         NSData *section = [[NSString stringWithFormat:@"Name: %@\r\nSHA-256-Digest: %@\r\n", e.name, b64]
                            dataUsingEncoding:NSASCIIStringEncoding];
@@ -345,7 +355,7 @@ static NSData *SDR_WriteZip(NSArray<SDRZipOutEntry *> *entries) {
     [sf appendData:[[NSString stringWithFormat:@"Signature-Version: 1.0\r\nCreated-By: 1.0 (StarDex-Run)\r\nSHA-256-Digest-Manifest: %@\r\n\r\n", manifestDigest]
                     dataUsingEncoding:NSASCIIStringEncoding]];
     for (NSUInteger i = 0; i < sigEntries.count; i++) {
-        SDRZipOutEntry e = sigEntries[i];
+        SDRZipOutEntry *e = sigEntries[i];
         NSString *b64 = SDR_Base64(SDR_SHA256(mfSections[i]));
         [sf appendData:[[NSString stringWithFormat:@"Name: %@\r\nSHA-256-Digest: %@\r\n", e.name, b64]
                         dataUsingEncoding:NSASCIIStringEncoding]];
@@ -375,20 +385,20 @@ static NSData *SDR_WriteZip(NSArray<SDRZipOutEntry *> *entries) {
         if ([n hasPrefix:@"META-INF/"] && isOldSig) continue;
         NSData *data = [zip dataForEntry:e error:nil];
         if (!data) continue;
-        SDRZipOutEntry o = { n, data, SDR_CRC32(data), 0 };
+        SDRZipOutEntry *o = [SDRZipOutEntry entryWithName:n data:data crc:SDR_CRC32(data)];
         [outEntries addObject:o];
     }
     NSData *mfName = [@"META-INF/MANIFEST.MF" dataUsingEncoding:NSUTF8StringEncoding];
     NSData *sfName = [@"META-INF/CERT.SF" dataUsingEncoding:NSUTF8StringEncoding];
     NSData *rsaName = [@"META-INF/CERT.RSA" dataUsingEncoding:NSUTF8StringEncoding];
-    SDRZipOutEntry mfEntry = { @"META-INF/MANIFEST.MF", mf, SDR_CRC32(mf), 0 };
-    SDRZipOutEntry sfEntry = { @"META-INF/CERT.SF", sf, SDR_CRC32(sf), 0 };
-    SDRZipOutEntry rsaEntry = { @"META-INF/CERT.RSA", pkcs7, SDR_CRC32(pkcs7), 0 };
+    SDRZipOutEntry *mfEntry = [SDRZipOutEntry entryWithName:@"META-INF/MANIFEST.MF" data:mf crc:SDR_CRC32(mf)];
+    SDRZipOutEntry *sfEntry = [SDRZipOutEntry entryWithName:@"META-INF/CERT.SF" data:sf crc:SDR_CRC32(sf)];
+    SDRZipOutEntry *rsaEntry = [SDRZipOutEntry entryWithName:@"META-INF/CERT.RSA" data:pkcs7 crc:SDR_CRC32(pkcs7)];
     (void)mfName; (void)sfName; (void)rsaName;
     [outEntries addObject:mfEntry];
     [outEntries addObject:sfEntry];
     [outEntries addObject:rsaEntry];
-    [outEntries sortUsingComparator:^NSComparisonResult(SDRZipOutEntry a, SDRZipOutEntry b) {
+    [outEntries sortUsingComparator:^NSComparisonResult(SDRZipOutEntry *a, SDRZipOutEntry *b) {
         return [a.name compare:b.name];
     }];
 

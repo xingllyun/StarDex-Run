@@ -512,36 +512,4 @@ static NSArray<NSData *> *SDR_ExtractCertificates(NSData *pkcs7) {
     return info;
 }
 
-- (NSDate *)dateFromValues:(id)v {
-    if ([v isKindOfClass:[NSDictionary class]]) return ((NSDictionary *)v)[(__bridge id)kSecPropertyKeyValue];
-    return nil;
-}
-- (NSString *)dnString:(id)v {
-    if ([v isKindOfClass:[NSDictionary class]]) {
-        id value = ((NSDictionary *)v)[(__bridge id)kSecPropertyKeyValue];
-        if ([value isKindOfClass:[NSDictionary class]]) return [value description];
-    }
-    return @"";
-}
-- (NSString *)cnFromValues:(id)v {
-    if ([v isKindOfClass:[NSDictionary class]]) {
-        id value = ((NSDictionary *)v)[(__bridge id)kSecPropertyKeyValue];
-        if ([value isKindOfClass:[NSDictionary class]]) {
-            NSArray *cns = value[(__bridge id)kSecOIDCommonName];
-            if ([cns isKindOfClass:[NSArray class]] && cns.count) return cns.firstObject;
-        }
-    }
-    return @"";
-}
-- (NSString *)serialString:(id)v {
-    if ([v isKindOfClass:[NSDictionary class]]) {
-        id value = ((NSDictionary *)v)[(__bridge id)kSecPropertyKeyValue];
-        if ([value isKindOfClass:[NSNumber class]]) {
-            return [NSString stringWithFormat:@"0x%llx", ((NSNumber *)value).unsignedLongLongValue];
-        }
-        if ([value isKindOfClass:[NSData class]]) return [value description];
-    }
-    return @"";
-}
-
 @end

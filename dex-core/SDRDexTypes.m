@@ -156,6 +156,7 @@ SDRValue SDRMakeObject(void *ref)       { SDRValue r; r.bits = 0; r.l = ref; ret
 
 - (BOOL)isNative { return (_accessFlags & SDR_ACC_NATIVE) != 0; }
 - (BOOL)isAbstract { return (_accessFlags & SDR_ACC_ABSTRACT) != 0; }
+- (BOOL)isStatic { return (_accessFlags & SDR_ACC_STATIC) != 0; }
 
 @end
 

@@ -668,12 +668,12 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
                 int32_t key = r[a].i;
                 int32_t firstKey = (int32_t)((uint32_t)insns[dataOff + 2] | ((uint32_t)insns[dataOff + 3] << 16));
                 int32_t index = key - firstKey;
-                int32_t off = 0;
-                if (size == 0) off = 0;
+                int32_t targetOff = 0;
+                if (size == 0) targetOff = 0;
                 else if (index >= 0 && index < size) {
-                    off = SDRSignExtend16(insns[dataOff + 4 + index]);
+                    targetOff = SDRSignExtend16(insns[dataOff + 4 + index]);
                 }
-                pc = (uint32_t)((int32_t)pc + off); break;
+                pc = (uint32_t)((int32_t)pc + targetOff); break;
             }
             case SDR_OP_SPARSE_SWITCH: {
                 uint8_t a = ins >> 8;

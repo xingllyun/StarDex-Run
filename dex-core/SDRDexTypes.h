@@ -14,6 +14,8 @@
 @class SDRDexClass;
 @class SDRDexObject;
 @class SDRDexArray;
+@class SDRDexField;
+@class SDRDexMethod;
 @class SDRTryRegion;
 @class SDRCatchHandler;
 
@@ -149,6 +151,7 @@ typedef NS_OPTIONS(uint32_t, SDRDexAccessFlags) {
 @property (nonatomic, strong) NSArray<SDRTryRegion *> *tryRegions;  // 异常处理区域
 - (BOOL)isNative;
 - (BOOL)isAbstract;
+- (BOOL)isStatic;
 @end
 
 // 单个 catch 处理器（catch-all 时 typeDescriptor 为空）。

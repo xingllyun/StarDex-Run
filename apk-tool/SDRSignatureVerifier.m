@@ -299,11 +299,11 @@ static NSArray<NSData *> *SDR_ExtractCertificates(NSData *pkcs7) {
         res.v1SignatureVerified = NO;
     } else {
         res.schemes |= SDRApkSchemeV1;
-        res.signed = YES;
+        res.isSigned = YES;
         [self verifyV1:res sfFile:sfFiles.firstObject];
     }
 
-    if (res.schemes & (SDRApkSchemeV2 | SDRApkSchemeV3)) res.signed = YES;
+    if (res.schemes & (SDRApkSchemeV2 | SDRApkSchemeV3)) res.isSigned = YES;
 
     [self summarize:res];
     return res;

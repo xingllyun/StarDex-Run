@@ -31,7 +31,7 @@ typedef NS_OPTIONS(NSUInteger, SDRApkSignedScheme) {
 // 一次签名校验的结果。
 @interface SDRApkSignatureResult : NSObject
 @property (nonatomic, assign) SDRApkSignedScheme schemes;  // 命中的方案位掩码
-@property (nonatomic, assign) BOOL signed;                 // 至少存在一种签名
+@property (nonatomic, assign) BOOL isSigned;              // 至少存在一种签名
 @property (nonatomic, assign) BOOL v1DigestIntegrity;       // V1 摘要链(条目→MF→SF)是否完整
 @property (nonatomic, assign) BOOL v1SignatureVerified;     // V1 证书 RSA 签名是否校验通过
 @property (nonatomic, strong) NSArray<SDRApkCertificateInfo *> *certificates;

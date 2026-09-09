@@ -70,7 +70,7 @@ final class AppState: ObservableObject {
         guard let sigResult = try? SDRSignatureVerifier().verifyApkData(data) else {
             return .invalid("签名校验失败")
         }
-        guard sigResult.signed else {
+        guard sigResult.isSigned else {
             log.error("未签名或签名失效，已拒绝导入", package: url.lastPathComponent)
             return .unsigned
         }

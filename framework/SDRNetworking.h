@@ -20,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 // 同步发送，返回响应体；网络错误时 error 非空。
 - (nullable NSData *)sendAndReceiveResponseWithError:(NSError **)error;
 // 异步发送，完成回调（主线程）。
-- (void)sendAsyncWithCompletion:(void (^)(nullable NSData *data, NSInteger statusCode, NSError * _Nullable error))completion;
+- (void)sendAsyncWithCompletion:(void (^)(NSData * _Nullable data, NSInteger statusCode, NSError * _Nullable error))completion;
 @end
 
 #pragma mark - Socket

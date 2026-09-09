@@ -15,8 +15,6 @@
 
 @implementation SDRHttpURLConnection {
     NSURL *_url;
-    int _socket;
-    struct sockaddr_in _addr;
 }
 
 - (instancetype)initWithURL:(NSURL *)url {
@@ -74,6 +72,7 @@
     uint16_t _port;
     BOOL _udp;
     int _socketFD;
+    struct sockaddr_in _addr;
 }
 
 - (instancetype)initTCPWithHost:(NSString *)host port:(uint16_t)port {

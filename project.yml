@@ -38,7 +38,7 @@ targets:
         # 自动生成 Info.plist
         GENERATE_INFOPLIST_FILE: "YES"
         INFOPLIST_KEY_CFBundleDisplayName: StarDex-Run
-        INFOPLIST_KEY_CFBundleShortVersionString: "1.0.0"
+        INFOPLIST_KEY_CFBundleShortVersionString: "1.0.1"
         INFOPLIST_KEY_CFBundleVersion: "1"
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

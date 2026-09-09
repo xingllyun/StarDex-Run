@@ -42,6 +42,10 @@
 
 #pragma mark - SDRComponent
 
+@interface SDRComponent ()
+@property (nonatomic, assign, readwrite) BOOL started;
+@end
+
 @implementation SDRComponent
 
 - (instancetype)initWithPackageName:(NSString *)packageName className:(NSString *)className {

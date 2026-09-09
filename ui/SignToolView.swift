@@ -119,7 +119,7 @@ struct SignToolView: View {
             apkData = data
             hardeningName = SDRHardeningDetector().detect(inRawData: data)
 
-            if let sigResult = try? SDRSignatureVerifier().verifyApkData(data) {
+            if let sigResult = try? SDRSignatureVerifier().verifyApkData(data, error: nil) {
                 sigSummary = sigResult.summaryMessage
             }
             if let parser = try? SDRApkParser(apkData: data),

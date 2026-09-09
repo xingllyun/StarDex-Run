@@ -52,7 +52,7 @@ struct SettingsView: View {
             entitlementRow("大内存", status: report.largeMemory)
 
             if !report.fullySatisfied {
-                if let tip = report.degradedTipText {
+                if let tip = report.degradedTipText() {
                     Text(tip)
                         .font(.caption)
                         .foregroundColor(.red)
@@ -65,12 +65,12 @@ struct SettingsView: View {
     private var generalSection: some View {
         Section("通用管理") {
             Button("清理全局缓存") {
-                _ = try? SDRSandboxCache.sharedCache().clearAllCaches()
+                _ = try? SDRSandboxCache.shared().clearAllCaches()
                 appState.log.info("已清理全局缓存")
                 noticeMessage = "已清理全局缓存"
             }
             Button("沙盒目录管理") {
-                let pkgs = SDRSandboxDirectory.sharedDirectory().installedPackageNames()
+                let pkgs = SDRSandboxDirectory.shared().installedPackageNames()
                 noticeMessage = "已安装沙盒：\(pkgs.joined(separator: "、"))"
             }
             Button("重置应用列表", role: .destructive) {

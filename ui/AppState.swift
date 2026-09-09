@@ -36,7 +36,7 @@ enum APKImportOutcome {
 final class AppState: ObservableObject {
     let log = LogStore()
     let entitlementReport: SDREntitlementReport = SDREntitlementChecker.checkCurrentProcess()
-    let versionAdapter: SDRVersionAdapter = .sharedAdapter()
+    let versionAdapter: SDRVersionAdapter = .shared()
 
     @Published var installedApps: [InstalledApp] = []
 
@@ -67,7 +67,7 @@ final class AppState: ObservableObject {
         }
 
         // 2. 签名校验：未签名 / 签名失效 → 拒绝并引导前往签名。
-        guard let sigResult = try? SDRSignatureVerifier().verifyApkData(data) else {
+        guard let sigResult = try? SDRSignatureVerifier().verifyApkData(data, error: nil) else {
             return .invalid("签名校验失败")
         }
         guard sigResult.isSigned else {
@@ -87,7 +87,7 @@ final class AppState: ObservableObject {
         installedApps.append(app)
 
         // 准备沙盒目录。
-        _ = SDRSandboxDirectory.sharedDirectory().ensureDataRoot(forPackage: info.packageName)
+        _ = SDRSandboxDirectory.shared().ensureDataRoot(forPackage: info.packageName)
         log.info("导入成功：\(info.packageName)", package: info.packageName)
         return .success(app)
     }
@@ -96,7 +96,7 @@ final class AppState: ObservableObject {
 
     func delete(_ app: InstalledApp) {
         installedApps.removeAll { $0.id == app.id }
-        _ = try? SDRSandboxDirectory.sharedDirectory().removeDataRoot(forPackage: app.packageName)
+        _ = try? SDRSandboxDirectory.shared().removeDataRoot(forPackage: app.packageName)
         log.info("已删除：\(app.packageName)", package: app.packageName)
     }
 

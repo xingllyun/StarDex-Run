@@ -39,7 +39,7 @@ typedef NS_ENUM(uint8_t, SDRElfSymType) {
     const uint8_t *_base;
     NSUInteger _len;
     uint8_t _class;
-    uint8_t _data;
+    uint8_t _endianness;
     uint16_t _machine;
     uint64_t _entry;
     uint16_t _eType;
@@ -68,8 +68,8 @@ typedef NS_ENUM(uint8_t, SDRElfSymType) {
             return nil;
         }
         _class = _base[SDR_ELF_CLASS_OFF];
-        _data = _base[SDR_ELF_DATA_OFF];
-        if ((_class != SDRElfClass32 && _class != SDRElfClass64) || _data != SDRElfDataLittleEndian) {
+        _endianness = _base[SDR_ELF_DATA_OFF];
+        if ((_class != SDRElfClass32 && _class != SDRElfClass64) || _endianness != SDRElfDataLittleEndian) {
             if (error) *error = [NSError errorWithDomain:@"SDRElfParser" code:3
                 userInfo:@{NSLocalizedDescriptionKey: @"仅支持小端 32/64 位 ELF"}];
             return nil;
@@ -82,10 +82,10 @@ typedef NS_ENUM(uint8_t, SDRElfSymType) {
 }
 
 - (BOOL)is64Bit { return _class == SDRElfClass64; }
-- (BOOL)isLittleEndian { return _data == SDRElfDataLittleEndian; }
+- (BOOL)isLittleEndian { return _endianness == SDRElfDataLittleEndian; }
 - (BOOL)isSharedObject { return _eType == 3; } // ET_DYN
 - (SDRElfClass)elfClass { return (SDRElfClass)_class; }
-- (SDRElfData)endianness { return (SDRElfData)_data; }
+- (SDRElfData)endianness { return (SDRElfData)_endianness; }
 - (uint16_t)machine { return _machine; }
 - (uint64_t)entryPoint { return _entry; }
 

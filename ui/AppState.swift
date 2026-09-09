@@ -52,11 +52,15 @@ final class AppState: ObservableObject {
     // MARK: - 导入流程（加固检测 → 签名校验 → 解析）
 
     func importApk(at url: URL) -> APKImportOutcome {
+        // 安全作用域资源访问：文件选取器返回的外部 URL 必须先申请读取权限。
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+
         let data: Data
         do {
             data = try Data(contentsOf: url)
         } catch {
-            return .invalid("读取文件失败：\(error.localizedDescription)")
+            return .invalid("读取文件失败（无访问权限）：\(error.localizedDescription)")
         }
 
         // 1. 加固检测：命中即拦截。

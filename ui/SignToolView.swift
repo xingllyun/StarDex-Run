@@ -112,8 +112,11 @@ struct SignToolView: View {
     private func handleImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
+            // 安全作用域资源访问：外部文件 URL 需先申请读取权限。
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else {
-                noticeMessage = "读取文件失败"
+                noticeMessage = "读取文件失败（无访问权限），请重新选择"
                 return
             }
             apkData = data

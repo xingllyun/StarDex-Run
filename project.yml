@@ -1,0 +1,56 @@
+# StarDex-Run — XcodeGen 工程定义
+# 用于云端（GitHub Actions macOS 主机）无需 Xcode GUI 即可生成 .xcodeproj 并编译。
+# 本地没有 Mac 也能打包：由 CI 运行 `xcodegen generate` 后 `xcodebuild` 构建。
+
+name: StarDex-Run
+options:
+  createIntermediateGroups: true
+
+targets:
+  StarDexRun:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - ui
+      - apk-tool
+      - dex-core
+      - ios-adapter
+      - framework
+      - native-loader
+      - sandbox
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xingyun.StarDexRun
+        PRODUCT_NAME: StarDexRun
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        # Swift ↔ ObjC 桥接
+        SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/ui/StarDexRun-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/apk-tool
+          - $(SRCROOT)/dex-core
+          - $(SRCROOT)/ios-adapter
+          - $(SRCROOT)/framework
+          - $(SRCROOT)/native-loader
+          - $(SRCROOT)/sandbox
+        # 自动生成 Info.plist
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_CFBundleDisplayName: StarDex-Run
+        INFOPLIST_KEY_CFBundleShortVersionString: "1.0.0"
+        INFOPLIST_KEY_CFBundleVersion: "1"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        # zlib（APK DEFLATE 解压）与 sqlite3（数据存储）
+        OTHER_LDFLAGS:
+          - "-lz"
+          - "-lsqlite3"
+    dependencies:
+      - sdk: UIKit.framework
+      - sdk: Security.framework
+      - sdk: SystemConfiguration.framework
+      - sdk: UserNotifications.framework
+      - sdk: AVFoundation.framework
+    scheme:
+      gatherCoverageData: false

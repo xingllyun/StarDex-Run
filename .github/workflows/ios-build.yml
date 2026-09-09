@@ -1,0 +1,69 @@
+# StarDex-Run — 云端打包（无需 Mac）
+# 在 GitHub Actions 的 macOS 主机上：xcodegen 生成工程 → xcodebuild 无签名构建 → 产出 IPA / .app
+# 产物为无签名包，用全能签 / 轻松签等侧载工具导入后即可重新签名安装。
+
+name: Cloud Build (无需 Mac)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: 云端构建 iOS
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 显示 Xcode 版本
+        run: xcodebuild -version
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        run: xcodegen generate
+
+      - name: 构建（无签名）
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "StarDex-Run.xcodeproj" \
+            -scheme "StarDexRun" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: 收集产物
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Build/Products/Release-iphoneos/StarDexRun.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "未找到 .app，实际产物路径如下："
+            find build -maxdepth 6 -name "*.app" -type d
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry "StarDexRun-unsigned.ipa" Payload
+          cp -R "$APP_PATH" "StarDexRun.app"
+          echo "构建完成：StarDexRun-unsigned.ipa（供侧载工具重新签名）"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarDexRun-unsigned
+          path: |
+            StarDexRun-unsigned.ipa
+            StarDexRun.app
+          if-no-files-found: error
+          retention-days: 30

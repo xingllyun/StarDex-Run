@@ -32,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak) SDRClassLoader *classLoader;
 @property (nonatomic, assign) uint64_t instructionLimit;   // 死循环保护阈值
 @property (nonatomic, readonly) uint64_t instructionCount;
+@property (nonatomic, readonly) uint32_t frameDepth;       // 当前调用栈深度
 @property (nonatomic, strong) NSMutableArray<id> *heapObjects;  // 根引用集合
 
 - (instancetype)initWithClassLoader:(SDRClassLoader *)classLoader;

@@ -63,6 +63,11 @@ static NSString *SDRDescriptorFromClassName(NSString *className, NSString *packa
                 summary:(NSString **)summaryOut
                   steps:(NSArray<NSString *> **)stepsOut
                   error:(NSError **)errorOut {
+    // 空路径保护
+    if (!apkPath || apkPath.length == 0) {
+        if (errorOut) *errorOut = SDRRuntimeError(@"APK 路径为空");
+        return;
+    }
     NSMutableArray<NSString *> *steps = [NSMutableArray array];
 
     // 1. 读取 APK（映射式，避免大包全量驻留内存）

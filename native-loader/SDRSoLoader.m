@@ -10,14 +10,26 @@
 #import <sys/mman.h>
 #import <unistd.h>
 
-@implementation SDRSoLoader
+@implementation SDRSoLoader {
+    size_t _totalMappedSize;
+}
 
 - (void *)functionPointerForSymbol:(NSString *)symbol error:(NSError **)error {
-    if (!_elf || !symbol) return NULL;
+    if (!_elf || !symbol) {
+        if (error) *error = [NSError errorWithDomain:@"SDRSoLoader" code:4
+            userInfo:@{NSLocalizedDescriptionKey: @"SO 未加载或符号名为空"}];
+        return NULL;
+    }
     SDRElfSymbol *sym = [_elf definedSymbolNamed:symbol];
     if (!sym) {
         if (error) *error = [NSError errorWithDomain:@"SDRSoLoader" code:1
-            userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"未找到导出符号: %@", symbol]}];
+            userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"未找到导出符号: %@", symbol ?: @"(null)"]}];
+        return NULL;
+    }
+    // 校验符号地址在映射范围内
+    if (sym.value >= _totalMappedSize) {
+        if (error) *error = [NSError errorWithDomain:@"SDRSoLoader" code:5
+            userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"符号 %@ 地址越界", symbol]}];
         return NULL;
     }
     return (void *)(_baseAddress + sym.value);
@@ -62,6 +74,7 @@
 
     _elf = elf;
     _baseAddress = base;
+    _totalMappedSize = totalSize;
 
     // 骨架阶段：不处理重定位，简单无依赖 SO（如纯计算函数 PIC）可直接调用。
     (void)[[SDRSymbolResolver alloc] initWithElf:elf];
@@ -69,9 +82,10 @@
 }
 
 - (void)unload {
-    if (_baseAddress) {
-        munmap((void *)_baseAddress, 0); // 未记录总大小；骨架阶段占位
+    if (_baseAddress && _totalMappedSize > 0) {
+        munmap((void *)_baseAddress, _totalMappedSize);
         _baseAddress = 0;
+        _totalMappedSize = 0;
     }
     _elf = nil;
 }

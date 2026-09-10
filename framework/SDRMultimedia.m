@@ -37,7 +37,9 @@
 
 - (instancetype)initWithContentsOfFile:(NSString *)path {
     if (self = [super init]) {
-        _player = [[AVAudioPlayer alloc] initWithContentsOfURL:[NSURL fileURLWithPath:path] error:NULL];
+        if (path.length > 0) {
+            _player = [[AVAudioPlayer alloc] initWithContentsOfURL:[NSURL fileURLWithPath:path] error:NULL];
+        }
     }
     return self;
 }

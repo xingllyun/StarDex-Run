@@ -95,9 +95,22 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
     if (self = [super init]) {
         _classLoader = classLoader;
         _instructionLimit = 100000000;  // 默认 1 亿条，防死循环
+        _frameDepth = 0;
         _heapObjects = [NSMutableArray array];
     }
     return self;
+}
+
+static const uint32_t kMaxFrameDepth = 1024;  // 最大调用栈深度
+
+// 校验寄存器索引在合法范围内，越界返回 NO。
+static inline BOOL SDRRegValid(uint32_t reg, uint32_t size) {
+    return reg < size;
+}
+
+// 校验 insns 数组访问不越界。
+static inline BOOL SDRInsValid(uint32_t off, uint32_t insnsSize) {
+    return off < insnsSize;
 }
 
 - (void)resetInstructionCount { _instructionCount = 0; }
@@ -148,6 +161,11 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
         return [SDRExecOutcome outcomeWithError:[NSString stringWithFormat:@"抽象方法 %@ 不可调用", method.name]];
     }
 
+    // 调用栈深度保护，防止无限递归导致栈溢出。
+    if (_frameDepth >= kMaxFrameDepth) {
+        return [SDRExecOutcome outcomeWithError:@"调用栈深度超限，疑似无限递归"];
+    }
+
     SDRFrame *frame = [[SDRFrame alloc] initWithMethod:method];
     // 展开参数到 ins 槽：实例方法首槽为 this（引用，占 1 逻辑槽），随后为参数；
     // 宽类型（long/double）在 DEX 布局中占 2 个逻辑槽，但本模型仅写入低位槽即可。
@@ -165,7 +183,10 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
         frame.registers[slot] = SDRValueUnwrap(args[argIndex++]);
         slot += (SDRIsWideType(params[i]) ? 2 : 1);
     }
-    return [self executeFrame:frame];
+    _frameDepth++;
+    SDRExecOutcome *result = [self executeFrame:frame];
+    _frameDepth--;
+    return result;
 }
 
 #pragma mark - 类初始化
@@ -684,14 +705,19 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
                 uint8_t a = ins >> 8;
                 int32_t off = (int32_t)((uint32_t)insns[pc + 1] | ((uint32_t)insns[pc + 2] << 16));
                 uint32_t dataOff = (uint32_t)((int32_t)pc + off);
+                // 越界保护：payload 表头至少需要 4 个 uint16_t（ident+size+firstKey）
+                if (dataOff + 4 > insnsSize) { pc += 3; break; }
                 uint16_t size = insns[dataOff + 1];
                 int32_t key = r[a].i;
                 int32_t firstKey = (int32_t)((uint32_t)insns[dataOff + 2] | ((uint32_t)insns[dataOff + 3] << 16));
                 int32_t index = key - firstKey;
                 int32_t targetOff = 0;
                 if (size == 0) targetOff = 0;
-                else if (index >= 0 && index < size) {
-                    targetOff = SDRSignExtend16(insns[dataOff + 4 + index]);
+                else if (index >= 0 && index < (int32_t)size) {
+                    // 确保目标偏移量在 payload 范围内
+                    if (dataOff + 4 + (uint32_t)index < insnsSize) {
+                        targetOff = SDRSignExtend16(insns[dataOff + 4 + index]);
+                    }
                 }
                 pc = (uint32_t)((int32_t)pc + targetOff); break;
             }
@@ -699,14 +725,20 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
                 uint8_t a = ins >> 8;
                 int32_t off0 = (int32_t)((uint32_t)insns[pc + 1] | ((uint32_t)insns[pc + 2] << 16));
                 uint32_t dataOff = (uint32_t)((int32_t)pc + off0);
+                // 越界保护：payload 表头至少需要 ident + size（2 个 uint16_t）
+                if (dataOff + 2 > insnsSize) { pc += 3; break; }
                 uint16_t size = insns[dataOff + 1];
                 int32_t key = r[a].i;
                 int32_t off = 0;
-                for (int i = 0; i < size; i++) {
-                    int32_t k = (int32_t)((uint32_t)insns[dataOff + 2 + i*2] | ((uint32_t)insns[dataOff + 3 + i*2] << 16));
-                    if (k == key) {
-                        off = SDRSignExtend16(insns[dataOff + 2 + size*2 + i]);
-                        break;
+                // 确保整个 payload 在 insns 范围内
+                uint32_t payloadEnd = dataOff + 2 + (uint32_t)size * 4;
+                if (payloadEnd <= insnsSize) {
+                    for (int i = 0; i < size; i++) {
+                        int32_t k = (int32_t)((uint32_t)insns[dataOff + 2 + i*2] | ((uint32_t)insns[dataOff + 3 + i*2] << 16));
+                        if (k == key) {
+                            off = SDRSignExtend16(insns[dataOff + 2 + size*2 + i]);
+                            break;
+                        }
                     }
                 }
                 pc = (uint32_t)((int32_t)pc + off); break;
@@ -727,7 +759,9 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
                 uint8_t a = ins >> 8;
                 int32_t off = (int32_t)((uint32_t)insns[pc + 1] | ((uint32_t)insns[pc + 2] << 16));
                 uint32_t dataOff = (uint32_t)((int32_t)pc + off);
-                [self fillArrayData:dataOff insns:insns arrayReg:a r:r];
+                if (dataOff + 4 <= insnsSize) {
+                    [self fillArrayData:dataOff insns:insns arrayReg:a r:r insnsSize:insnsSize];
+                }
                 pc += 3; break;
             }
 
@@ -938,9 +972,11 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
 }
 
 // 填充 fill-array-data 常量数据（payload 结构：ident, element_width, size, data...）。
-- (void)fillArrayData:(uint32_t)dataOff insns:(const uint16_t *)insns arrayReg:(uint8_t)reg r:(SDRValue *)r {
+- (void)fillArrayData:(uint32_t)dataOff insns:(const uint16_t *)insns arrayReg:(uint8_t)reg r:(SDRValue *)r insnsSize:(uint32_t)insnsSize {
     SDRDexArray *arr = (__bridge SDRDexArray *)r[reg].l;
     if (!arr) return;
+    // payload 越界保护：表头至少需要 4 个 uint16_t
+    if (dataOff + 4 > insnsSize) return;
     uint16_t ident = insns[dataOff];
     uint16_t elemWidth = insns[dataOff + 1];
     uint32_t size = (uint32_t)insns[dataOff + 2] | ((uint32_t)insns[dataOff + 3] << 16);
@@ -949,6 +985,9 @@ static int32_t SDRSignExtend8(uint8_t v) { return (int32_t)(int8_t)v; }
     NSUInteger avail = (NSUInteger)arr.length * [arr elementWidth];
     if (toCopy > avail) toCopy = avail;
     if (toCopy == 0) return;
+    // 确保源数据在 insns 数组范围内
+    uint32_t dataEnd = (dataOff + 4) * 2 + (uint32_t)toCopy;
+    if (dataEnd > insnsSize * 2) return;
     const uint8_t *src = (const uint8_t *)&insns[dataOff + 4];
     memcpy(arr.primitiveData.mutableBytes, src, toCopy);
 }

@@ -133,6 +133,12 @@ static NSError *SDRZipError(NSInteger code, NSString *message) {
 }
 
 - (SDRZipEntry *)entryNamed:(NSString *)name {
+    if (!name) return nil;
+    for (SDRZipEntry *e in _entries) {
+        if ([e.name isEqualToString:name]) return e;
+    }
+    return nil;
+}
 
 - (NSArray<SDRZipEntry *> *)entriesWithPrefix:(NSString *)prefix {
     NSMutableArray<SDRZipEntry *> *out = [NSMutableArray array];
@@ -153,6 +159,14 @@ static NSError *SDRZipError(NSInteger code, NSString *message) {
 }
 
 - (NSData *)dataForEntry:(SDRZipEntry *)entry error:(NSError **)error {
+    if (!entry) {
+        if (error) *error = SDRZipError(11, @"条目为空");
+        return nil;
+    }
+    // 文件模式：按需从磁盘分片读取
+    if (_fileURL) {
+        return [self dataForEntryFromFile:entry error:error];
+    }
     const uint8_t *base = (const uint8_t *)_data.bytes;
     uint32_t off = entry.localHeaderOffset;
     if (off + 30 > _data.length) {
@@ -193,6 +207,10 @@ static NSError *SDRZipError(NSInteger code, NSString *message) {
 
 - (NSData *)inflateRawDeflate:(const uint8_t *)src compressedSize:(uint32_t)compSize
              uncompressedSize:(uint32_t)uncompSize error:(NSError **)error {
+    if (!src || compSize == 0 || uncompSize == 0) {
+        if (error) *error = SDRZipError(12, @"inflate 参数无效");
+        return nil;
+    }
     z_stream strm;
     memset(&strm, 0, sizeof(strm));
     // 负 windowBits：原始 deflate，无 zlib 头。
@@ -218,6 +236,122 @@ static NSError *SDRZipError(NSInteger code, NSString *message) {
     }
     [out setLength:(NSUInteger)strm.total_out];
     return out;
+}
+
+#pragma mark - 文件模式读取
+
+- (BOOL)parseCentralDirectoryFromFile:(NSError **)error {
+    if (!_fileURL) return NO;
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingFromURL:_fileURL error:error];
+    if (!fh) return NO;
+    @try {
+        NSData *fileData = [fh readDataToEndOfFile];
+        NSUInteger fileLen = fileData.length;
+        if (fileLen < 22) {
+            if (error) *error = SDRZipError(1, @"数据过短，非有效 ZIP");
+            return NO;
+        }
+        const uint8_t *base = fileData.bytes;
+        NSUInteger searchLen = fileLen > 65557 ? 65557 : fileLen;
+        NSUInteger start = fileLen - searchLen;
+        NSUInteger eocdLoc = NSNotFound;
+        for (NSUInteger i = fileLen - 22; ; i--) {
+            if (i < start) break;
+            if (base[i] == 0x50 && base[i+1] == 0x4b && base[i+2] == 0x05 && base[i+3] == 0x06) {
+                uint16_t commentLen = (uint16_t)(base[i+20] | (base[i+21] << 8));
+                if (i + 22 + commentLen == fileLen) { eocdLoc = i; break; }
+            }
+        }
+        if (eocdLoc == NSNotFound) {
+            if (error) *error = SDRZipError(2, @"未找到 ZIP 结束记录");
+            return NO;
+        }
+        const uint8_t *eocd = base + eocdLoc;
+        uint32_t entryCount = (uint32_t)eocd[10] | ((uint32_t)eocd[11] << 8);
+        uint32_t centralOff = (uint32_t)eocd[16] | ((uint32_t)eocd[17] << 8) | ((uint32_t)eocd[18] << 16) | ((uint32_t)eocd[19] << 24);
+        if (centralOff + 4 > fileLen) {
+            if (error) *error = SDRZipError(3, @"中心目录偏移越界");
+            return NO;
+        }
+        NSMutableArray<SDRZipEntry *> *entries = [NSMutableArray arrayWithCapacity:entryCount];
+        uint32_t off = centralOff;
+        for (uint32_t i = 0; i < entryCount; i++) {
+            if (off + 46 > fileLen) break;
+            const uint8_t *rec = base + off;
+            if ((uint32_t)rec[0] | ((uint32_t)rec[1]<<8) | ((uint32_t)rec[2]<<16) | ((uint32_t)rec[3]<<24) != SDRZIP_CENTRAL_SIG) break;
+            uint16_t method = (uint16_t)(rec[10] | (rec[11] << 8));
+            uint32_t crc = (uint32_t)rec[16] | ((uint32_t)rec[17]<<8) | ((uint32_t)rec[18]<<16) | ((uint32_t)rec[19]<<24);
+            uint32_t compSize = (uint32_t)rec[20] | ((uint32_t)rec[21]<<8) | ((uint32_t)rec[22]<<16) | ((uint32_t)rec[23]<<24);
+            uint32_t uncompSize = (uint32_t)rec[24] | ((uint32_t)rec[25]<<8) | ((uint32_t)rec[26]<<16) | ((uint32_t)rec[27]<<24);
+            uint16_t nameLen = (uint16_t)(rec[28] | (rec[29] << 8));
+            uint16_t extraLen = (uint16_t)(rec[30] | (rec[31] << 8));
+            uint16_t commentLen = (uint16_t)(rec[32] | (rec[33] << 8));
+            uint32_t localOff = (uint32_t)rec[42] | ((uint32_t)rec[43]<<8) | ((uint32_t)rec[44]<<16) | ((uint32_t)rec[45]<<24);
+            if (off + 46 + nameLen > fileLen) break;
+            NSString *name = [[NSString alloc] initWithBytes:rec + 46 length:nameLen encoding:NSUTF8StringEncoding];
+            if (!name) name = @"";
+            SDRZipEntry *e = [SDRZipEntry new];
+            e.name = name;
+            e.method = (SDRZipMethod)method;
+            e.crc32 = crc;
+            e.compressedSize = compSize;
+            e.uncompressedSize = uncompSize;
+            e.localHeaderOffset = localOff;
+            [entries addObject:e];
+            off += 46 + nameLen + extraLen + commentLen;
+        }
+        _entries = entries;
+        [fh closeFile];
+        return YES;
+    } @catch (NSException *exception) {
+        if (error) *error = SDRZipError(13, [NSString stringWithFormat:@"文件读取异常: %@", exception.reason ?: @""]);
+        [fh closeFile];
+        return NO;
+    }
+}
+
+- (NSData *)dataForEntryFromFile:(SDRZipEntry *)entry error:(NSError **)error {
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingFromURL:_fileURL error:error];
+    if (!fh) return nil;
+    @try {
+        uint32_t off = entry.localHeaderOffset;
+        [fh seekToFileOffset:off];
+        NSData *lhData = [fh readDataOfLength:30];
+        if (lhData.length < 30) {
+            if (error) *error = SDRZipError(5, @"本地文件头越界");
+            return nil;
+        }
+        const uint8_t *lh = lhData.bytes;
+        if ((uint32_t)lh[0] | ((uint32_t)lh[1]<<8) | ((uint32_t)lh[2]<<16) | ((uint32_t)lh[3]<<24) != SDRZIP_LOCAL_SIG) {
+            if (error) *error = SDRZipError(6, @"本地文件头签名错误");
+            return nil;
+        }
+        uint16_t nameLen = (uint16_t)(lh[26] | (lh[27] << 8));
+        uint16_t extraLen = (uint16_t)(lh[28] | (lh[29] << 8));
+        uint64_t dataOff = (uint64_t)off + 30 + nameLen + extraLen;
+        [fh seekToFileOffset:dataOff];
+        NSData *compressed = [fh readDataOfLength:entry.compressedSize];
+        if (compressed.length < entry.compressedSize) {
+            if (error) *error = SDRZipError(7, @"条目数据越界");
+            return nil;
+        }
+        if (entry.method == SDRZipMethodStore) {
+            [fh closeFile];
+            return compressed;
+        }
+        if (entry.method == SDRZipMethodDeflate) {
+            [fh closeFile];
+            return [self inflateRawDeflate:compressed.bytes compressedSize:entry.compressedSize
+                         uncompressedSize:entry.uncompressedSize error:error];
+        }
+        if (error) *error = SDRZipError(8, [NSString stringWithFormat:@"不支持的压缩方法: %u", entry.method]);
+        [fh closeFile];
+        return nil;
+    } @catch (NSException *exception) {
+        if (error) *error = SDRZipError(14, [NSString stringWithFormat:@"文件读取异常: %@", exception.reason ?: @""]);
+        [fh closeFile];
+        return nil;
+    }
 }
 
 @end

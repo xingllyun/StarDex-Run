@@ -26,6 +26,12 @@
 }
 
 - (NSData *)sendAndReceiveResponseWithError:(NSError **)error {
+    // 同步请求不应在主线程调用（会阻塞 UI），API 映射层需确保调用方已在后台线程。
+    if ([NSThread isMainThread]) {
+        if (error) *error = [NSError errorWithDomain:@"SDRNetworking" code:-1
+                                           userInfo:@{NSLocalizedDescriptionKey: @"同步网络请求禁止在主线程调用"}];
+        return nil;
+    }
     __block NSData *result = nil;
     __block NSInteger code = 0;
     __block NSError *err = nil;

@@ -166,10 +166,15 @@ typedef NS_ENUM(uint8_t, SDRElfSymType) {
 
 - (void)parseDynamicSegmentAtFileOffset:(uint64_t)fileOff {
     // 解析 DT_* 项，收集 STRTAB/SYMTAB/HASH 等。虚拟地址与文件偏移按简单基址映射。
-    while (1) {
+    // 最大迭代次数保护，防止畸形 .dynamic 段导致死循环。
+    const uint64_t maxIter = 4096;
+    uint64_t iter = 0;
+    while (iter++ < maxIter) {
+        NSUInteger entrySize = [self is64Bit] ? 16 : 8;
+        if (fileOff + entrySize > _len) break;
         int64_t tag = (int64_t)([self is64Bit] ? [self readU64At:fileOff] : [self readU32At:fileOff]);
         uint64_t val = [self is64Bit] ? [self readU64At:fileOff + 8] : [self readU32At:fileOff + 4];
-        fileOff += [self is64Bit] ? 16 : 8;
+        fileOff += entrySize;
         if (tag == 0) break; // DT_NULL
 
         switch (tag) {

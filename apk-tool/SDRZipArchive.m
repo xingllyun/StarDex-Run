@@ -18,7 +18,9 @@
 }
 @end
 
-@implementation SDRZipArchive
+@implementation SDRZipArchive {
+    NSURL *_fileURL;   // 文件模式：非 nil 时条目数据按需从磁盘分片读取
+}
 
 - (instancetype)initWithData:(NSData *)data error:(NSError **)error {
     if (self = [super init]) {
@@ -26,6 +28,19 @@
         if (![self parseCentralDirectory:error]) {
             return nil;
         }
+    }
+    return self;
+}
+
+static NSError *SDRZipError(NSInteger code, NSString *message) {
+    return [NSError errorWithDomain:@"SDRZipArchive" code:code
+                           userInfo:@{NSLocalizedDescriptionKey: message}];
+}
+
+- (instancetype)initWithFileURL:(NSURL *)fileURL error:(NSError **)error {
+    if (self = [super init]) {
+        _fileURL = fileURL;
+        if (![self parseCentralDirectoryFromFile:error]) return nil;
     }
     return self;
 }
@@ -118,11 +133,6 @@
 }
 
 - (SDRZipEntry *)entryNamed:(NSString *)name {
-    for (SDRZipEntry *e in _entries) {
-        if ([e.name isEqualToString:name]) return e;
-    }
-    return nil;
-}
 
 - (NSArray<SDRZipEntry *> *)entriesWithPrefix:(NSString *)prefix {
     NSMutableArray<SDRZipEntry *> *out = [NSMutableArray array];

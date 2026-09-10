@@ -28,17 +28,24 @@ typedef NS_ENUM(uint16_t, SDRZipMethod) {
 
 // 极简只读 ZIP 解析器：只依赖中心目录 + 本地文件头，
 // 支持 STORE 与 DEFLATE（zlib raw inflate），专用于读 APK。
+// 两种模式：
+//   1) 内存模式 initWithData：全量数据已在内存（签名工具等场景）。
+//   2) 文件模式 initWithFileURL：仅加载尾部 EOCD + 中央目录元数据，
+//      条目数据按需经独立 FileHandle 分片读取（导入/运行大 APK 场景，
+//      控制内存峰值，避免全量加载被系统强杀）。
 @interface SDRZipArchive : NSObject
 
-@property (nonatomic, strong, readonly) NSData *data;
+@property (nonatomic, strong, readonly, nullable) NSData *data;         // 文件模式为 nil
 @property (nonatomic, strong, readonly) NSArray<SDRZipEntry *> *entries;
 
 - (nullable instancetype)initWithData:(NSData *)data error:(NSError **)error;
+- (nullable instancetype)initWithFileURL:(NSURL *)fileURL error:(NSError **)error;
 
 - (nullable SDRZipEntry *)entryNamed:(NSString *)name;
 - (nullable NSArray<SDRZipEntry *> *)entriesWithPrefix:(NSString *)prefix;
 
 // 解压条目内容；越界/损坏返回 nil 并写 error。
+// 文件模式下每次读取独立打开 FileHandle（线程安全）。
 - (nullable NSData *)dataForEntry:(SDRZipEntry *)entry error:(NSError **)error;
 - (nullable NSData *)dataForEntryNamed:(NSString *)name error:(NSError **)error;
 

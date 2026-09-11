@@ -16,14 +16,21 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)sharedInstance;
 
 // 基础 libc 映射：内存操作。
-- (void)_malloc;
-- (void)_free;
 - (void)_memcpy:(void *)dst src:(const void *)src count:(size_t)count;
 - (void)_memset:(void *)dst byte:(int)byte count:(size_t)count;
+- (void)_memmove:(void *)dst src:(const void *)src count:(size_t)count;
+- (int)_memcmp:(const void *)a b:(const void *)b count:(size_t)count;
 
 // 基础 libc 映射：字符串操作。
 - (size_t)_strlen:(const char *)s;
 - (int)_strcmp:(const char *)a b:(const char *)b;
+- (int)_strncmp:(const char *)a b:(const char *)b count:(size_t)count;
+- (char *)_strcpy:(char *)dst src:(const char *)src;
+- (char *)_strncpy:(char *)dst src:(const char *)src count:(size_t)count;
+- (char *)_strcat:(char *)dst src:(const char *)src;
+- (char *)_strncat:(char *)dst src:(const char *)src count:(size_t)count;
+- (const char *)_strchr:(const char *)s c:(int)c;
+- (const char *)_strstr:(const char *)haystack needle:(const char *)needle;
 
 // 基础 libc 映射：文件描述符操作（映射到 iOS fd 语义）。
 - (int)_open:(const char *)pathname flags:(int)flags;

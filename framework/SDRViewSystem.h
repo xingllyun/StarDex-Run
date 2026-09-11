@@ -37,21 +37,28 @@ typedef NS_ENUM(NSInteger, SDRLayoutType) {
 @property (nonatomic, assign) BOOL hidden;
 @property (nonatomic, assign) NSInteger tag;
 - (UIView *)nativeViewForDisplay;   // 返回可渲染的原生视图
+// 供子类在其自定义 init 中将占位视图替换为具体原生控件（UILabel/UIButton/...）。
+- (void)replaceNativeView:(UIView *)view;
 @end
 
 #pragma mark - 基础控件（映射 iOS 原生控件）
 
 @interface SDRTextView : SDRView
 @property (nonatomic, copy) NSString *text;
+@property (nonatomic, strong) UIColor *textColor;
+@property (nonatomic, assign) CGFloat fontSize;
+@property (nonatomic, assign) NSTextAlignment textAlignment;
 @end
 
 @interface SDRButton : SDRView
 @property (nonatomic, copy) NSString *text;
+@property (nonatomic, strong) UIColor *textColor;
 @property (nonatomic, copy, nullable) void (^onClick)(void);
 @end
 
 @interface SDRImageView : SDRView
 @property (nonatomic, strong, nullable) UIImage *image;
+- (void)loadImageFromData:(NSData *)data;
 @end
 
 @interface SDREditText : SDRView

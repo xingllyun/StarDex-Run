@@ -19,4 +19,5 @@
 #import "SDRApkSigner.h"
 #import "SDRSandboxDirectory.h"
 #import "SDRSandboxCache.h"
+#import "SDRPackageInstaller.h"
 #import "SDRAppRuntime.h"

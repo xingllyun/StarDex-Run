@@ -111,6 +111,15 @@ final class AppState: ObservableObject {
             return .invalid("无法保存 APK 副本：\(error.localizedDescription)")
         }
 
+        // 4b. 自动解压分类存放（DEX / SO / 资源 / Manifest → 沙盒对应子目录）。
+        //     分类失败仅记录告警，不阻断导入（运行阶段可回退为按需解析）。
+        let installInfo: SDRApkInfo? = (try? SDRPackageInstaller.shared().installApk(atPath: storedPath)) ?? nil
+        if let installed = installInfo {
+            log.info("已按类型分类解压：\(installed.dexFiles.count) 个 DEX / \(installed.nativeLibs.count) 个 SO", package: info.packageName)
+        } else {
+            log.warn("自动分类解压未完成（不影响导入）", package: info.packageName)
+        }
+
         let app = InstalledApp(info: info,
                                signatureSummary: sigResult.summaryMessage,
                                fileSize: Int64(data.count),

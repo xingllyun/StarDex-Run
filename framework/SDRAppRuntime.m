@@ -11,6 +11,9 @@
 #import "SDRDexParser.h"
 #import "SDRClassLoader.h"
 #import "SDRInterpreter.h"
+#import "SDRAppComponents.h"
+#import "SDRMemoryGuard.h"
+#import "SDRSandboxDirectory.h"
 
 static NSError *SDRRuntimeError(NSString *message) {
     return [NSError errorWithDomain:@"SDRAppRuntime" code:1
@@ -169,9 +172,30 @@ static NSString *SDRDescriptorFromClassName(NSString *className, NSString *packa
         return;
     }
 
+    // 6. 推进框架层 Activity 完整生命周期（onCreate → onStart → onResume），并压入任务栈
+    SDRActivity *activity = [[SDRActivity alloc] initWithPackageName:packageName className:entryClass];
+    [activity onCreate];
+    [activity onStart];
+    [activity onResume];
+    [[SDRActivityStack sharedStack] pushActivity:activity];
+    [steps addObject:[NSString stringWithFormat:@"Activity 生命周期推进至 %@（onCreate→onStart→onResume）",
+                      [activity isInState:SDRActivityStateResumed] ? @"Resumed" : @"异常状态"]];
+
+    // 7. 单应用内存上限管控（超出阈值主动告警，不强制 OOM）
+    uint64_t footprint = [SDRMemoryGuard sharedGuard].currentFootprint;
+    if (footprint > [SDRMemoryGuard sharedGuard].perAppMemoryLimit) {
+        [steps addObject:[NSString stringWithFormat:@"Warn：内存足迹 %llu MB 超过单应用上限，已触发压力提示",
+                          (unsigned long long)(footprint / (1024 * 1024))]];
+        [[SDRMemoryGuard sharedGuard] notifyMemoryWarningForPackage:packageName];
+    } else {
+        [steps addObject:[NSString stringWithFormat:@"内存足迹 %llu MB（上限 %llu MB）",
+                          (unsigned long long)(footprint / (1024 * 1024)),
+                          (unsigned long long)([SDRMemoryGuard sharedGuard].perAppMemoryLimit / (1024 * 1024))]];
+    }
+
     if (stepsOut) *stepsOut = steps;
     if (summaryOut) *summaryOut = [NSString stringWithFormat:
-        @"启动流程完成：%u 个 DEX / 入口 %@ / onCreate 正常返回（指令数 %llu）",
+        @"启动流程完成：%u 个 DEX / 入口 %@ / onCreate 正常返回并推进至 Resumed（指令数 %llu）",
         (unsigned)dexCount, entryClass, (unsigned long long)interp.instructionCount];
 }
 

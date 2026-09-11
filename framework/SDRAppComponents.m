@@ -64,13 +64,77 @@
     SDRActivityLifecycleState _state;
 }
 
+- (instancetype)initWithPackageName:(NSString *)packageName className:(NSString *)className {
+    if (self = [super initWithPackageName:packageName className:className]) {
+        _state = (SDRActivityLifecycleState)-1;  // 未创建
+    }
+    return self;
+}
+
 - (SDRActivityLifecycleState)lifecycleState { return _state; }
-- (void)onCreate    { _state = SDRActivityStateCreated; }
-- (void)onStart     { _state = SDRActivityStateStarted; self.started = YES; }
-- (void)onResume    { _state = SDRActivityStateResumed; }
-- (void)onPause     { _state = SDRActivityStatePaused; }
-- (void)onStop      { _state = SDRActivityStateStopped; self.started = NO; }
-- (void)onDestroy   { _state = SDRActivityStateDestroyed; }
+- (BOOL)isInState:(SDRActivityLifecycleState)state { return _state == state; }
+
+- (void)setContentView:(SDRView *)view { _contentView = view; }
+
+- (void)onCreate {
+    if (_state != (SDRActivityLifecycleState)-1) return;  // 非法重复调用拦截
+    _state = SDRActivityStateCreated;
+}
+- (void)onStart {
+    if (_state != SDRActivityStateCreated && _state != SDRActivityStateStopped) return;
+    _state = SDRActivityStateStarted; self.started = YES;
+}
+- (void)onResume {
+    if (_state != SDRActivityStateStarted && _state != SDRActivityStatePaused) return;
+    _state = SDRActivityStateResumed;
+}
+- (void)onPause {
+    if (_state != SDRActivityStateResumed) return;
+    _state = SDRActivityStatePaused;
+}
+- (void)onStop {
+    if (_state != SDRActivityStateStarted && _state != SDRActivityStatePaused) return;
+    _state = SDRActivityStateStopped; self.started = NO;
+}
+- (void)onDestroy {
+    _state = SDRActivityStateDestroyed;
+    self.started = NO;
+}
+
+@end
+
+#pragma mark - SDRActivityStack
+
+@implementation SDRActivityStack {
+    NSMutableArray<SDRActivity *> *_stack;
+}
+
++ (instancetype)sharedStack { static id s; static dispatch_once_t t; dispatch_once(&t, ^{ s = [self new]; }); return s; }
+
+- (instancetype)init {
+    if (self = [super init]) { _stack = [NSMutableArray array]; }
+    return self;
+}
+
+- (void)pushActivity:(SDRActivity *)activity {
+    @synchronized (_stack) {
+        if (activity && ![_stack containsObject:activity]) [_stack addObject:activity];
+    }
+}
+- (void)popActivity {
+    @synchronized (_stack) {
+        if (_stack.count) [_stack removeLastObject];
+    }
+}
+- (nullable SDRActivity *)topActivity {
+    @synchronized (_stack) { return _stack.lastObject; }
+}
+- (NSArray<SDRActivity *> *)activityList {
+    @synchronized (_stack) { return [_stack copy]; }
+}
+- (void)removeAll {
+    @synchronized (_stack) { [_stack removeAllObjects]; }
+}
 
 @end
 

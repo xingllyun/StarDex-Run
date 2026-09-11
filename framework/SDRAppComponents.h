@@ -46,8 +46,12 @@ typedef NS_ENUM(NSInteger, SDRActivityLifecycleState) {
     SDRActivityStateDestroyed
 };
 
+@class SDRView;
+
 @interface SDRActivity : SDRComponent
 @property (nonatomic, assign, readonly) SDRActivityLifecycleState lifecycleState;
+// 根视图容器（映射 android.app.Activity#setContentView）。
+@property (nonatomic, strong, nullable) SDRView *contentView;
 // 生命周期回调（由框架调度器按序调用）。
 - (void)onCreate;
 - (void)onStart;
@@ -55,6 +59,22 @@ typedef NS_ENUM(NSInteger, SDRActivityLifecycleState) {
 - (void)onPause;
 - (void)onStop;
 - (void)onDestroy;
+// 设置根视图（等价 setContentView(int layoutResID)）。
+- (void)setContentView:(SDRView *)view;
+// 状态校验：当前是否处于指定生命周期状态。
+- (BOOL)isInState:(SDRActivityLifecycleState)state;
+@end
+
+#pragma mark - Activity 栈（页面跳转 / 返回）
+
+// Activity 栈：维护活动页面的入栈/出栈顺序，等价 Android 任务栈。
+@interface SDRActivityStack : NSObject
++ (instancetype)sharedStack;
+- (void)pushActivity:(SDRActivity *)activity;
+- (void)popActivity;
+- (nullable SDRActivity *)topActivity;
+- (NSArray<SDRActivity *> *)activityList;
+- (void)removeAll;
 @end
 
 #pragma mark - Service

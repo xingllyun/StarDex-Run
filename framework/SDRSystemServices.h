@@ -59,4 +59,18 @@ typedef NS_ENUM(NSInteger, SDRNetworkStatus) {
 - (void)requestAuthorizationWithCompletion:(void (^)(BOOL granted))completion;
 @end
 
+#pragma mark - Toast 服务
+
+// Toast 短提示：映射 Android Toast，等价 iOS 原生悬浮提示（非阻塞、自动消失）。
+typedef NS_ENUM(NSInteger, SDRToastDuration) {
+    SDRToastDurationShort = 0,   // 约 2.0s
+    SDRToastDurationLong         // 约 3.5s
+};
+
+@interface SDRToastService : NSObject
++ (instancetype)sharedInstance;
+// 主线程安全调用；内部自动切主线程展示。
+- (void)showToast:(NSString *)message duration:(SDRToastDuration)duration;
+@end
+
 NS_ASSUME_NONNULL_END

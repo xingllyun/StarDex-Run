@@ -1,6 +1,7 @@
 # StarDex-Run — 云端打包（无需 Mac）
 # 在 GitHub Actions 的 macOS 主机上：xcodegen 生成工程 → xcodebuild 无签名构建 → 产出 IPA / .app
-# 产物为无签名包，用全能签 / 轻松签等侧载工具导入后即可重新签名安装。
+# 产物为无签名包（含大地址空间 + 大内存 entitlements 声明），用全能签 / 轻松签等侧载工具导入后重签即可安装。
+# 每次推送 main 自动构建，并自动发布 Release 附 IPA 下载链接。
 
 name: Cloud Build (无需 Mac)
 
@@ -10,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-ios:
@@ -58,7 +59,7 @@ jobs:
           cp -R "$APP_PATH" "StarDexRun.app"
           echo "构建完成：StarDexRun-unsigned.ipa（供侧载工具重新签名）"
 
-      - name: 上传构建产物
+      - name: 上传构建产物（Artifact）
         uses: actions/upload-artifact@v4
         with:
           name: StarDexRun-unsigned
@@ -67,3 +68,22 @@ jobs:
             StarDexRun.app
           if-no-files-found: error
           retention-days: 30
+
+      - name: 发布 Release（附 IPA 下载链接）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: StarDex-Run 无签名侧载包（build ${{ github.run_number }}）
+          body: |
+            ## StarDex-Run 云端构建产物
+
+            - 提交：`${{ github.sha }}`
+            - 分支：`${{ github.ref_name }}`
+            - 类型：iOS 无签名侧载包（声明大地址空间 + 大内存 entitlements）
+            - 适配：iOS 16 ~ iOS 27
+            - 安装：下载 `StarDexRun-unsigned.ipa`，用「全能签 / 轻松签」等侧载工具导入并重新签名后安装。
+
+            > 无签名包需侧载证书重签；证书需开启「大内存」「大地址空间」权限方可完整运行。
+          files: StarDexRun-unsigned.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

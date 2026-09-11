@@ -30,6 +30,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        # 侧载签名权限声明：大地址空间 + 大内存（重签工具读取该 entitlements 注入证书）
+        CODE_SIGN_ENTITLEMENTS: StarDexRun.entitlements
         # 桌面图标资源目录（ui/Assets.xcassets/AppIcon.appiconset）
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Swift ↔ ObjC 桥接

@@ -88,8 +88,10 @@ struct LogView: View {
         HStack(alignment: .top, spacing: 6) {
             Text(timeString(entry.timestamp))
                 .foregroundColor(.gray)
-            Text("[\(entry.package)]")
+            Text("[\(entry.module)]")
                 .foregroundColor(.cyan)
+            Text("[\(entry.package)]")
+                .foregroundColor(.mint)
             Text(entry.message)
                 .foregroundColor(color(for: entry.level))
         }
@@ -99,15 +101,17 @@ struct LogView: View {
 
     private func color(for level: LogLevel) -> Color {
         switch level {
-        case .info: return .white
-        case .warn: return .yellow
+        case .debug: return .gray
+        case .info:  return .white
+        case .warn:  return .yellow
         case .error: return .red
+        case .fatal: return .orange
         }
     }
 
     private func timeString(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
+        f.dateFormat = "HH:mm:ss.SSS"
         return f.string(from: date)
     }
 

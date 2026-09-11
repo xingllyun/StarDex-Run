@@ -21,5 +21,7 @@ struct RootView: View {
             AboutView()
                 .tabItem { Label("关于", systemImage: "info.circle") }
         }
+        .preferredColorScheme(.dark)
+        .tint(.blue)
     }
 }

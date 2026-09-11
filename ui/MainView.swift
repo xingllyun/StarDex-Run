@@ -51,7 +51,11 @@ struct MainView: View {
             .sheet(item: $selectedApp) { app in
                 AppDetailView(app: app)
             }
+            .sheet(item: $appState.runningApp) { app in
+                RunStateView(app: app)
+            }
         }
+        .preferredColorScheme(.dark)
     }
 
     private var emptyState: some View {
@@ -126,9 +130,8 @@ struct AppCard: View {
                 Image(uiImage: icon)
                     .resizable()
                     .frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
             } else {
-                RoundedRectangle(cornerRadius: 10)
+                Rectangle()
                     .fill(Color.secondary.opacity(0.2))
                     .frame(width: 48, height: 48)
                     .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
@@ -159,9 +162,8 @@ struct AppDetailView: View {
                             Image(uiImage: icon)
                                 .resizable()
                                 .frame(width: 64, height: 64)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
                         } else {
-                            RoundedRectangle(cornerRadius: 14)
+                            Rectangle()
                                 .fill(Color.secondary.opacity(0.2))
                                 .frame(width: 64, height: 64)
                                 .overlay(Image(systemName: "app.fill")
@@ -192,7 +194,11 @@ struct AppDetailView: View {
                 }
                 Section {
                     Button("启动") {
-                        appState.launch(app)
+                        // 先关闭详情页，再启动并弹出运行状态页，避免多层 sheet 冲突。
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            appState.launch(app)
+                        }
                     }
                     .disabled(appState.isRunning)
                     Button("导出运行日志") {
@@ -211,6 +217,7 @@ struct AppDetailView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     private func row(_ key: String, _ value: String) -> some View {

@@ -369,6 +369,14 @@ static inline BOOL SDRInsValid(uint32_t off, uint32_t insnsSize) {
                 r[a].l = (__bridge void *)s;
                 pc += 2; break;
             }
+            case SDR_OP_CONST_STRING_JUMBO: {
+                uint8_t a = ins >> 8;
+                uint32_t strIdx = (uint32_t)insns[pc + 1] | ((uint32_t)insns[pc + 2] << 16);
+                NSString *s = [method.owner.dexFile stringByIdx:strIdx];
+                [self registerHeapObject:s];
+                r[a].l = (__bridge void *)s;
+                pc += 3; break;
+            }
             case SDR_OP_CONST_CLASS: {
                 uint8_t a = ins >> 8;
                 uint16_t typeIdx = insns[pc + 1];

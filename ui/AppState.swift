@@ -258,11 +258,10 @@ final class AppState: ObservableObject {
         }
     }
 
-    // 停止运行：取消超时、清理任务栈、关闭运行状态页。
+    // 停止运行：取消超时、重置状态、关闭运行状态页。
     func stopRun() {
         launchTimeoutWorkItem?.cancel()
         launchTimeoutWorkItem = nil
-        SDRActivityStack.sharedStack().removeAll()
         isRunning = false
         runningPackageName = nil
         if let pkg = runningApp?.packageName {

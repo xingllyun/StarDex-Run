@@ -34,8 +34,11 @@ struct SignToolView: View {
                 }
                 .padding()
             }
-            .navigationTitle("签名工具")
-            .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(title: "签名工具")
+            }
+            .navigationTitle("")
+            .navigationBarHidden(true)
             .fileImporter(isPresented: $showImporter,
                           allowedContentTypes: [UTType(filenameExtension: "apk") ?? .data]) { result in
                 handleImport(result)

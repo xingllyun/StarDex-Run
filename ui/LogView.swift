@@ -24,15 +24,13 @@ struct LogView: View {
                 logList
             }
             .background(Color.black)
-            .navigationTitle("运行日志")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { exportLog() } label: {
-                        Label("导出", systemImage: "square.and.arrow.up")
-                    }
-                }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(title: "运行日志",
+                              trailingIcon: "square.and.arrow.up",
+                              trailingAction: { exportLog() })
             }
+            .navigationTitle("")
+            .navigationBarHidden(true)
             .sheet(item: $exportURL) { box in
                 ShareSheet(items: [box.url])
             }

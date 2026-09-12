@@ -21,8 +21,11 @@ struct SettingsView: View {
                 generalSection
                 donationSection
             }
-            .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(title: "设置")
+            }
+            .navigationTitle("")
+            .navigationBarHidden(true)
             .alert(item: Binding<IdentifiableString?>(
                 get: { noticeMessage.map(IdentifiableString.init) },
                 set: { noticeMessage = $0?.value }

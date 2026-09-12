@@ -25,22 +25,20 @@ struct MainView: View {
                     appList
                 }
             }
-            .navigationTitle("StarDex-Run")
-            // 显式锁定大标题模式：避免 iOS 26 等系统版本默认行为变化导致标题/状态位置漂移。
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                // 状态提示固定在导航栏顶部行（跨 iOS 16~27 稳定渲染，不依赖 principal 的系统差异）。
-                ToolbarItem(placement: .topBarLeading) {
-                    statusBar
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showImporter = true
-                    } label: {
-                        Label("导入", systemImage: "plus")
-                    }
-                }
+            // 完全自定义顶栏：不依赖系统导航栏（iOS 16~27 渲染一致），
+            // 避免 iOS 26 对 large title / toolbar 的布局差异导致标题与状态位置漂移。
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(
+                    title: "StarDex-Run",
+                    statusText: appState.isRunning ? "运行中" : "空闲",
+                    statusDot: true,
+                    statusDotColor: appState.isRunning ? .green : .gray,
+                    trailingIcon: "plus",
+                    trailingAction: { showImporter = true }
+                )
             }
+            .navigationTitle("")
+            .navigationBarHidden(true)
             .fileImporter(isPresented: $showImporter,
                           allowedContentTypes: [UTType(filenameExtension: "apk") ?? .data]) { result in
                 handleImport(result)
@@ -74,18 +72,6 @@ struct MainView: View {
             Button("导入 APK") { showImporter = true }
                 .buttonStyle(.borderedProminent)
         }
-    }
-
-    private var statusBar: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(appState.isRunning ? Color.green : Color.gray)
-                .frame(width: 8, height: 8)
-            Text(appState.isRunning ? "运行中" : "空闲")
-                .font(.footnote)
-                .foregroundColor(.white)
-        }
-        .padding(.vertical, 2)
     }
 
     private var appList: some View {

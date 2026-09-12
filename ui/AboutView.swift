@@ -68,8 +68,11 @@ struct AboutView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .navigationTitle("关于")
-            .navigationBarTitleDisplayMode(.large)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(title: "关于")
+            }
+            .navigationTitle("")
+            .navigationBarHidden(true)
         }
     }
 

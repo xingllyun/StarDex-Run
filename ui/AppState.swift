@@ -86,6 +86,7 @@ final class AppState: ObservableObject {
     @Published var runStageDetail: String = ""
     @Published var launchError: String? = nil
     @Published var runningApp: InstalledApp? = nil   // 用于弹出运行状态页（sheet item）
+    @Published var lastProgressStage: RunStage = .verifyFile   // 失败前最后到达的阶段（用于失败态高亮）
 
     // 启动超时保护（15 秒）
     private var launchTimeoutWorkItem: DispatchWorkItem?
@@ -202,6 +203,7 @@ final class AppState: ObservableObject {
         runStage = .verifyFile
         runStageDetail = "准备启动"
         launchError = nil
+        lastProgressStage = .verifyFile
         log.info("正在启动 \(app.packageName)（DEX 解释执行）", module: "ui", package: app.packageName)
 
         // 15 秒启动超时保护：避免解释执行卡死导致「无反应」。
@@ -227,6 +229,9 @@ final class AppState: ObservableObject {
                     self.runStageDetail = detail ?? ""
                     if stage == .failed {
                         self.launchError = detail
+                    } else {
+                        // 记录最后正常到达的阶段，失败时用于状态页高亮卡点。
+                        self.lastProgressStage = RunStage(rawValue: stage.rawValue) ?? .verifyFile
                     }
                     self.log.info("启动阶段：\(detail ?? "")", module: "framework", package: app.packageName)
                 }

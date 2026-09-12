@@ -11,6 +11,19 @@ import SwiftUI
 struct AboutView: View {
     @EnvironmentObject var appState: AppState
 
+    // 从 Info.plist 读取真实版本号（CFBundleShortVersionString），避免硬编码过期。
+    private var appVersion: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        if let short = short, !short.isEmpty {
+            if let build = build, !build.isEmpty, build != short {
+                return "\(short) (\(build))"
+            }
+            return short
+        }
+        return "未知"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -21,7 +34,7 @@ struct AboutView: View {
                             .foregroundColor(.accentColor)
                         Text("StarDex-Run")
                             .font(.title2.bold())
-                        Text("版本 0.1.0")
+                        Text("版本 \(appVersion)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -56,6 +69,7 @@ struct AboutView: View {
                 }
             }
             .navigationTitle("关于")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 

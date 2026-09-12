@@ -22,6 +22,7 @@ struct SettingsView: View {
                 donationSection
             }
             .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.large)
             .alert(item: Binding<IdentifiableString?>(
                 get: { noticeMessage.map(IdentifiableString.init) },
                 set: { noticeMessage = $0?.value }

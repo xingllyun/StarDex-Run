@@ -6,6 +6,7 @@
  */
 
 import SwiftUI
+import UIKit
 
 // 日志页：实时滚动、按等级着色、按包名/等级/关键词筛选、一键导出。
 struct LogView: View {
@@ -14,6 +15,7 @@ struct LogView: View {
     @State private var packageFilter = ""
     @State private var keywordFilter = ""
     @State private var levelFilter: LogLevel? = nil
+    @State private var exportURL: ExportURLBox?
 
     var body: some View {
         NavigationStack {
@@ -23,12 +25,16 @@ struct LogView: View {
             }
             .background(Color.black)
             .navigationTitle("运行日志")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { exportLog() } label: {
                         Label("导出", systemImage: "square.and.arrow.up")
                     }
                 }
+            }
+            .sheet(item: $exportURL) { box in
+                ShareSheet(items: [box.url])
             }
         }
     }
@@ -122,8 +128,26 @@ struct LogView: View {
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
             appState.log.info("日志已导出：\(url.lastPathComponent)")
+            exportURL = ExportURLBox(url: url)
         } catch {
             appState.log.error("日志导出失败：\(error.localizedDescription)")
         }
     }
+}
+
+// 供 sheet 使用的文件 URL 包装。
+struct ExportURLBox: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+// 系统分享面板（UIActivityViewController 的 SwiftUI 包装）。
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

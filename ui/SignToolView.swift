@@ -35,6 +35,7 @@ struct SignToolView: View {
                 .padding()
             }
             .navigationTitle("签名工具")
+            .navigationBarTitleDisplayMode(.large)
             .fileImporter(isPresented: $showImporter,
                           allowedContentTypes: [UTType(filenameExtension: "apk") ?? .data]) { result in
                 handleImport(result)

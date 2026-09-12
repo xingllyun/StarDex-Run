@@ -26,11 +26,14 @@ struct MainView: View {
                 }
             }
             .navigationTitle("StarDex-Run")
+            // 显式锁定大标题模式：避免 iOS 26 等系统版本默认行为变化导致标题/状态位置漂移。
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .principal) {
+                // 状态提示固定在导航栏顶部行（跨 iOS 16~27 稳定渲染，不依赖 principal 的系统差异）。
+                ToolbarItem(placement: .topBarLeading) {
                     statusBar
                 }
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showImporter = true
                     } label: {
@@ -80,8 +83,9 @@ struct MainView: View {
                 .frame(width: 8, height: 8)
             Text(appState.isRunning ? "运行中" : "空闲")
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white)
         }
+        .padding(.vertical, 2)
     }
 
     private var appList: some View {
@@ -130,10 +134,12 @@ struct AppCard: View {
                 Image(uiImage: icon)
                     .resizable()
                     .frame(width: 48, height: 48)
+                    .cornerRadius(10)
             } else {
                 Rectangle()
                     .fill(Color.secondary.opacity(0.2))
                     .frame(width: 48, height: 48)
+                    .cornerRadius(10)
                     .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
             }
             VStack(alignment: .leading, spacing: 4) {

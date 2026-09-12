@@ -131,11 +131,20 @@ struct RunStateView: View {
     }
 
     private func stageRow(_ stage: RunStage) -> some View {
-        let currentIdx = stages.firstIndex(of: appState.runStage)
         let stageIdx = stages.firstIndex(of: stage)!
-        let isDone = currentIdx.map { stageIdx < $0 } ?? false
+        // 失败态：定位到失败前最后到达的阶段（卡点），其前视为已完成、卡点标红。
+        let failedIdx: Int? = appState.runStage == .failed
+            ? stages.firstIndex(of: appState.lastProgressStage)
+            : nil
+        let currentIdx = stages.firstIndex(of: appState.runStage)
+        let isDone: Bool
+        if let failedIdx = failedIdx {
+            isDone = stageIdx < failedIdx
+        } else {
+            isDone = currentIdx.map { stageIdx < $0 } ?? false
+        }
         let isCurrent = stage == appState.runStage && appState.runStage != .failed
-        let isFailedStage = appState.runStage == .failed && stage == .running
+        let isFailedStage = appState.runStage == .failed && stageIdx == failedIdx
 
         return HStack(spacing: 12) {
             // 状态图标
@@ -154,7 +163,7 @@ struct RunStateView: View {
 
             Text("\(stageIndexText(stageIdx)). \(stage.title)")
                 .font(.subheadline)
-                .foregroundColor(isCurrent ? .white : (isDone ? .green.opacity(0.8) : .secondary))
+                .foregroundColor(isCurrent ? .white : (isDone ? .green.opacity(0.8) : (isFailedStage ? .red : .secondary)))
 
             Spacer()
         }

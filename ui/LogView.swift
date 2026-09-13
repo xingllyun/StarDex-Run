@@ -8,7 +8,7 @@
 import SwiftUI
 import UIKit
 
-// 日志页：实时滚动、按等级着色、按包名/等级/关键词筛选、一键导出。
+// 全新设计的日志页
 struct LogView: View {
     @EnvironmentObject var appState: AppState
 
@@ -23,7 +23,7 @@ struct LogView: View {
                 filterBar
                 logList
             }
-            .background(Color.black)
+            .background(Color(red: 0.03, green: 0.03, blue: 0.05))
             .safeAreaInset(edge: .top, spacing: 0) {
                 StarDexTopBar(title: "运行日志",
                               trailingIcon: "square.and.arrow.up",
@@ -47,14 +47,33 @@ struct LogView: View {
     }
 
     private var filterBar: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Image(systemName: "magnifyingglass").foregroundColor(.secondary)
-                TextField("关键词", text: $keywordFilter)
-                    .textFieldStyle(.roundedBorder)
-                TextField("包名", text: $packageFilter)
-                    .textFieldStyle(.roundedBorder)
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.white.opacity(0.5))
+                    TextField("关键词", text: $keywordFilter)
+                        .textFieldStyle(.plain)
+                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(10)
+                
+                HStack {
+                    Image(systemName: "cube.box.fill")
+                        .foregroundColor(.white.opacity(0.5))
+                    TextField("包名", text: $packageFilter)
+                        .textFieldStyle(.plain)
+                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(10)
             }
+            
             Picker("等级", selection: $levelFilter) {
                 Text("全部").tag(LogLevel?.none)
                 ForEach(LogLevel.allCases) { level in
@@ -64,14 +83,14 @@ struct LogView: View {
             .pickerStyle(.segmented)
         }
         .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color.black.opacity(0.9))
+        .padding(.vertical, 12)
+        .background(Color(red: 0.03, green: 0.03, blue: 0.05).opacity(0.95))
     }
 
     private var logList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 4) {
+                LazyVStack(alignment: .leading, spacing: 6) {
                     ForEach(filteredEntries) { entry in
                         entryRow(entry)
                             .id(entry.id)
@@ -79,7 +98,7 @@ struct LogView: View {
                 }
                 .padding()
             }
-            .background(Color.black)
+            .background(Color(red: 0.03, green: 0.03, blue: 0.05))
             .onChange(of: filteredEntries.count) { _ in
                 if let last = filteredEntries.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
@@ -89,26 +108,46 @@ struct LogView: View {
     }
 
     private func entryRow(_ entry: LogEntry) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Text(timeString(entry.timestamp))
-                .foregroundColor(.gray)
-            Text("[\(entry.module)]")
-                .foregroundColor(.cyan)
-            Text("[\(entry.package)]")
-                .foregroundColor(.mint)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(timeString(entry.timestamp))
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.4))
+                
+                Text("[模块]")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.cyan.opacity(0.8))
+                Text(entry.module)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.cyan)
+                
+                Text("[包名]")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.mint.opacity(0.8))
+                Text(entry.package)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.mint)
+            }
+            
             Text(entry.message)
+                .font(.system(.caption, design: .monospaced))
                 .foregroundColor(color(for: entry.level))
+                .lineLimit(nil)
         }
-        .font(.system(.caption, design: .monospaced))
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.03))
+        )
     }
 
     private func color(for level: LogLevel) -> Color {
         switch level {
-        case .debug: return .gray
+        case .debug: return .white.opacity(0.5)
         case .info:  return .white
         case .warn:  return .yellow
-        case .error: return .red
+        case .error: return .red.opacity(0.9)
         case .fatal: return .orange
         }
     }

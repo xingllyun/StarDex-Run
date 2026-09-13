@@ -7,134 +7,86 @@
 
 import SwiftUI
 
-// 关于页：版权、免责声明。
+// 关于页：版本号、开源协议、版权、支持系统、已知限制。
 struct AboutView: View {
     @EnvironmentObject var appState: AppState
 
+    // 从 Info.plist 读取真实版本号（CFBundleShortVersionString），避免硬编码过期。
+    private var appVersion: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        if let short = short, !short.isEmpty {
+            if let build = build, !build.isEmpty, build != short {
+                return "\(short) (\(build))"
+            }
+            return short
+        }
+        return "未知"
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                // 背景
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.05, green: 0.05, blue: 0.15),
-                        Color(red: 0.02, green: 0.02, blue: 0.08)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 28) {
-                        appIconAndInfo
-                        disclaimerSection
-                        copyrightSection
+            List {
+                Section {
+                    VStack(spacing: 8) {
+                        Image(systemName: "shippingbox")
+                            .font(.system(size: 56))
+                            .foregroundColor(.accentColor)
+                        Text("StarDex-Run")
+                            .font(.title2.bold())
+                        Text("版本 \(appVersion)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
-                    .padding(24)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
                 }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    StarDexTopBar(title: "关于")
+
+                Section("协议与版权") {
+                    labelRow("开源协议", "MIT License")
+                    labelRow("版权所有", "星云云络科技")
                 }
+
+                Section("支持系统") {
+                    Label("iOS 16 ~ 19", systemImage: "checkmark.circle")
+                    Label("iOS 26 ~ 27", systemImage: "checkmark.circle")
+                    Text("当前系统：\(appState.versionAdapter.systemDescription())")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Section("已知限制") {
+                    limitation("不支持加固后的 APK（不脱壳、不破解）")
+                    limitation("纯解释执行，无 JIT / AOT 编译")
+                    limitation("仅兼容简单无依赖原生 SO 库")
+                    limitation("安卓 API 按需映射，非全量复刻")
+                }
+
+                Section("部署要求") {
+                    Text("侧载签名证书需开启「大地址空间」「大内存」两项权限。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(title: "关于")
             }
             .navigationTitle("")
             .navigationBarHidden(true)
         }
     }
 
-    // 应用图标和信息
-    private var appIconAndInfo: some View {
-        VStack(spacing: 20) {
-            // 应用图标
-            ZStack {
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [.blue, .purple, .pink]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 140, height: 140)
-                    .shadow(color: .purple.opacity(0.4), radius: 20, x: 0, y: 12)
-                
-                Image(systemName: "app.gift.fill")
-                    .font(.system(size: 72))
-                    .foregroundColor(.white)
-            }
-            
-            VStack(spacing: 8) {
-                Text("StarDex-Run")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                
-                Text("iOS 侧载 APK 运行时")
-                    .font(.system(.callout, design: .rounded))
-                    .foregroundColor(.secondary)
-                
-                Text("v\(SDRVersion.current.description)")
-                    .font(.system(.subheadline, design: .rounded))
-                    .foregroundColor(.tertiary)
-            }
+    private func labelRow(_ key: String, _ value: String) -> some View {
+        HStack {
+            Text(key).foregroundColor(.secondary)
+            Spacer()
+            Text(value)
         }
-        .padding(.vertical, 20)
     }
 
-    // 免责声明
-    private var disclaimerSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("免责声明", icon: "exclamationmark.shield")
-            
-            VStack(alignment: .leading, spacing: 12) {
-                Text("本项目仅供学习与研究使用。使用时请遵守当地法律法规，不得用于任何非法用途。")
-                
-                Text("我们不对因使用本工具产生的任何直接或间接损失负责。")
-            }
-            .font(.system(.subheadline, design: .rounded))
+    private func limitation(_ text: String) -> some View {
+        Label(text, systemImage: "exclamationmark.triangle")
+            .font(.subheadline)
             .foregroundColor(.secondary)
-            .padding(20)
-            .background(.ultraThinMaterial.opacity(0.8))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-            )
-        }
-    }
-
-    // 版权信息
-    private var copyrightSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionHeader("版权信息", icon: "c.circle")
-            
-            VStack(alignment: .leading, spacing: 12) {
-                Text("© \(Calendar.current.component(.year, from: Date())) 星云云络科技")
-                    .font(.system(.subheadline, design: .rounded))
-                    .foregroundColor(.primary)
-                
-                Text("MIT License")
-                    .font(.system(.subheadline, design: .rounded))
-                    .foregroundColor(.blue)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial.opacity(0.8))
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-            )
-        }
-    }
-
-    // 区块标题
-    private func sectionHeader(_ title: String, icon: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.orange)
-            Text(title)
-                .font(.system(.title3, design: .rounded))
-                .fontWeight(.semibold)
-        }
     }
 }

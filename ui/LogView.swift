@@ -6,116 +6,146 @@
  */
 
 import SwiftUI
+import UIKit
 
-// 日志页：按等级过滤，支持滚动浏览，一键分享。
+// 日志页：实时滚动、按等级着色、按包名/等级/关键词筛选、一键导出。
 struct LogView: View {
     @EnvironmentObject var appState: AppState
 
+    @State private var packageFilter = ""
+    @State private var keywordFilter = ""
+    @State private var levelFilter: LogLevel? = nil
+    @State private var exportURL: ExportURLBox?
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                // 背景
-                Color(red: 0.02, green: 0.02, blue: 0.08)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 0) {
-                    logList
-                }
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    StarDexTopBar(
-                        title: "日志",
-                        statusText: "\(appState.log.entries.count) 条",
-                        statusDot: true,
-                        statusDotColor: .blue,
-                        trailingIcon: "square.and.arrow.up",
-                        trailingAction: {
-                            let text = appState.log.entries.map(\.text).joined(separator: "\n")
-                            let shareUrl = SDRLogWriter.shared().saveTemporary(with: text)
-                            if let shareUrl = shareUrl {
-                                // 在实际场景中，这里会弹出分享 Sheet
-                                print("分享 URL: \(shareUrl)")
-                            }
-                        }
-                    )
-                }
+            VStack(spacing: 0) {
+                filterBar
+                logList
+            }
+            .background(Color.black)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(title: "运行日志",
+                              trailingIcon: "square.and.arrow.up",
+                              trailingAction: { exportLog() })
             }
             .navigationTitle("")
             .navigationBarHidden(true)
+            .sheet(item: $exportURL) { box in
+                ShareSheet(items: [box.url])
+            }
         }
     }
 
-    // 日志列表
+    private var filteredEntries: [LogEntry] {
+        appState.log.entries.filter { entry in
+            let passLevel = (levelFilter == nil) || (entry.level == levelFilter)
+            let passPackage = packageFilter.isEmpty || entry.package.contains(packageFilter)
+            let passKeyword = keywordFilter.isEmpty || entry.message.contains(keywordFilter)
+            return passLevel && passPackage && passKeyword
+        }
+    }
+
+    private var filterBar: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "magnifyingglass").foregroundColor(.secondary)
+                TextField("关键词", text: $keywordFilter)
+                    .textFieldStyle(.roundedBorder)
+                TextField("包名", text: $packageFilter)
+                    .textFieldStyle(.roundedBorder)
+            }
+            Picker("等级", selection: $levelFilter) {
+                Text("全部").tag(LogLevel?.none)
+                ForEach(LogLevel.allCases) { level in
+                    Text(level.title).tag(LogLevel?.some(level))
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.9))
+    }
+
     private var logList: some View {
         ScrollViewReader { proxy in
-            List {
-                ForEach(appState.log.entries.filter { $0.level.rawValue <= appState.logLevel.rawValue }) { entry in
-                    LogRow(entry: entry)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .id(entry.id)
-                }
-            }
-            .listStyle(.plain)
-            .onChange(of: appState.log.entries.count) { _ in
-                if let last = appState.log.entries.last {
-                    withAnimation(.spring(response: 0.3)) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(filteredEntries) { entry in
+                        entryRow(entry)
+                            .id(entry.id)
                     }
                 }
+                .padding()
+            }
+            .background(Color.black)
+            .onChange(of: filteredEntries.count) { _ in
+                if let last = filteredEntries.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
             }
         }
     }
-}
 
-// 日志行
-struct LogRow: View {
-    let entry: LogEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                LevelBadge(level: entry.level)
-                
-                Text(entry.timestamp.formatted(.dateTime))
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-            }
-            
+    private func entryRow(_ entry: LogEntry) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(timeString(entry.timestamp))
+                .foregroundColor(.gray)
+            Text("[\(entry.module)]")
+                .foregroundColor(.cyan)
+            Text("[\(entry.package)]")
+                .foregroundColor(.mint)
             Text(entry.message)
-                .font(.system(.subheadline, design: .rounded))
-                .foregroundColor(.primary)
-                .lineSpacing(4)
+                .foregroundColor(color(for: entry.level))
         }
-        .padding(16)
-        .background(.ultraThinMaterial.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(.white.opacity(0.08), lineWidth: 1)
-        )
+        .font(.system(.caption, design: .monospaced))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func color(for level: LogLevel) -> Color {
+        switch level {
+        case .debug: return .gray
+        case .info:  return .white
+        case .warn:  return .yellow
+        case .error: return .red
+        case .fatal: return .orange
+        }
+    }
+
+    private func timeString(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        return f.string(from: date)
+    }
+
+    private func exportLog() {
+        let text = appState.exportLogText()
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let url = dir.appendingPathComponent("StarDex-Run-log.txt")
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            appState.log.info("日志已导出：\(url.lastPathComponent)")
+            exportURL = ExportURLBox(url: url)
+        } catch {
+            appState.log.error("日志导出失败：\(error.localizedDescription)")
+        }
     }
 }
 
-// 等级徽章
-struct LevelBadge: View {
-    let level: LogLevel
+// 供 sheet 使用的文件 URL 包装。
+struct ExportURLBox: Identifiable {
+    let id = UUID()
+    let url: URL
+}
 
-    var body: some View {
-        Text(level.title)
-            .font(.system(size: 10, weight: .bold, design: .rounded))
-            .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(bgColor)
-            .clipShape(Capsule())
+// 系统分享面板（UIActivityViewController 的 SwiftUI 包装）。
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
 
-    var bgColor: Color {
-        switch level {
-        case .info: return .blue
-        case .warn: return .orange
-        case .error: return .red
-        }
-    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

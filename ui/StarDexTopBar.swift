@@ -22,62 +22,47 @@ struct StarDexTopBar: View {
             if statusText != nil || trailingIcon != nil {
                 ZStack {
                     if let statusText = statusText {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 6) {
                             if statusDot {
                                 Circle()
                                     .fill(statusDotColor)
-                                    .frame(width: 10, height: 10)
-                                    .shadow(color: statusDotColor, radius: 4, x: 0, y: 0)
+                                    .frame(width: 8, height: 8)
                             }
                             Text(statusText)
-                                .font(.system(.footnote, design: .rounded))
-                                .fontWeight(.medium)
-                                .foregroundColor(.white.opacity(0.9))
+                                .font(.footnote)
+                                .foregroundColor(.white)
                         }
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 40)
+                .frame(height: 34)
                 .overlay(alignment: .trailing) {
                     if let trailingIcon = trailingIcon, let trailingAction = trailingAction {
                         Button(action: trailingAction) {
                             Image(systemName: trailingIcon)
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white)
-                                .frame(width: 40, height: 40)
-                                .background(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)]),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .clipShape(Circle())
-                                .shadow(color: .blue.opacity(0.4), radius: 6, x: 0, y: 3)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.blue)
+                                .frame(width: 32, height: 32)
+                                .background(Color(white: 0.12), in: Circle())
                         }
-                        .padding(.trailing, 16)
+                        .padding(.trailing, 14)
                     }
                 }
             }
 
             HStack {
                 Text(title)
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                 Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
 
-            // 渐变分隔线
-            LinearGradient(
-                gradient: Gradient(colors: [.clear, .white.opacity(0.2), .clear]),
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 1)
+            Rectangle()
+                .fill(Color(white: 0.22))
+                .frame(height: 0.5)
         }
-        .background(.ultraThinMaterial.opacity(0.8))
+        .background(Color.black)
     }
 }

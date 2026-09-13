@@ -8,40 +8,34 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// 主视图：已安装应用列表（网格布局）、长按编辑模式、右上角「+」导入 APK。
+// 主界面：顶部导航 + 应用列表卡片 + 底部快捷操作。
 struct MainView: View {
     @EnvironmentObject var appState: AppState
 
     @State private var showImporter = false
-    @State private var editing = false
-    @State private var selectedToDelete: Set<UUID> = []
-    @State private var showRunStateSheet = false
+    @State private var alertMessage: String?
+    @State private var selectedApp: InstalledApp?
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                // 星空背景
-                StarFieldBackground()
-                
-                VStack(spacing: 0) {
-                    // 自定义顶栏
-                    StarDexTopBar(
-                        title: "应用",
-                        statusText: appState.isRunning ? "运行中：\(appState.runningPackageName ?? "未知")" : (appState.installedApps.isEmpty ? "未安装应用" : "已安装 \(appState.installedApps.count) 个应用"),
-                        statusDot: appState.isRunning,
-                        statusDotColor: .green,
-                        trailingIcon: "plus",
-                        trailingAction: { showImporter = true }
-                    )
-                    
-                    if appState.installedApps.isEmpty {
-                        emptyState
-                    } else {
-                        appGrid
-                    }
-                    
-                    Spacer()
+            Group {
+                if appState.installedApps.isEmpty {
+                    emptyState
+                } else {
+                    appList
                 }
+            }
+            // 完全自定义顶栏：不依赖系统导航栏（iOS 16~27 渲染一致），
+            // 避免 iOS 26 对 large title / toolbar 的布局差异导致标题与状态位置漂移。
+            .safeAreaInset(edge: .top, spacing: 0) {
+                StarDexTopBar(
+                    title: "StarDex-Run",
+                    statusText: appState.isRunning ? "运行中" : "空闲",
+                    statusDot: true,
+                    statusDotColor: appState.isRunning ? .green : .gray,
+                    trailingIcon: "plus",
+                    trailingAction: { showImporter = true }
+                )
             }
             .navigationTitle("")
             .navigationBarHidden(true)
@@ -49,116 +43,51 @@ struct MainView: View {
                           allowedContentTypes: [UTType(filenameExtension: "apk") ?? .data]) { result in
                 handleImport(result)
             }
-            .sheet(isPresented: $showRunStateSheet) {
-                if let app = appState.runningApp {
-                    RunStateView(app: app)
-                }
+            .alert(item: Binding<IdentifiableString?>(
+                get: { alertMessage.map(IdentifiableString.init) },
+                set: { alertMessage = $0?.value }
+            )) { item in
+                Alert(title: Text("提示"), message: Text(item.value), dismissButton: .default(Text("确定")))
             }
-            .onChange(of: appState.runningApp) { newValue in
-                showRunStateSheet = newValue != nil
+            .sheet(item: $selectedApp) { app in
+                AppDetailView(app: app)
+            }
+            .sheet(item: $appState.runningApp) { app in
+                RunStateView(app: app)
             }
         }
+        .preferredColorScheme(.dark)
     }
 
-    // 空状态：引导导入。
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "app.dashed")
-                .font(.system(size: 60))
+        VStack(spacing: 12) {
+            Image(systemName: "tray.and.arrow.down")
+                .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            Text("还没有安装应用")
+            Text("暂无已导入应用")
                 .font(.headline)
-            Text("点击右上角「+」导入 APK，或使用「签名工具」为未签名包签名")
-                .font(.caption)
+            Text("点击右上角「导入」选择 APK 文件")
+                .font(.subheadline)
                 .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // 应用网格。
-    private var appGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 16)], spacing: 16) {
-                ForEach(appState.installedApps) { app in
-                    appCard(app)
-                }
-            }
-            .padding()
+            Button("导入 APK") { showImporter = true }
+                .buttonStyle(.borderedProminent)
         }
     }
 
-    // 单个应用卡片。
-    private func appCard(_ app: InstalledApp) -> some View {
-        VStack(spacing: 8) {
-            // 图标
-            Group {
-                if let icon = app.icon {
-                    Image(uiImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    ZStack {
-                        LinearGradient(
-                            gradient: Gradient(colors: [.blue, .purple]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        Image(systemName: "app.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(.white)
+    private var appList: some View {
+        List {
+            ForEach(appState.installedApps) { app in
+                AppCard(app: app)
+                    .contentShape(Rectangle())
+                    .onTapGesture { selectedApp = app }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            appState.delete(app)
+                        } label: { Label("删除", systemImage: "trash") }
                     }
-                }
-            }
-            .frame(width: 72, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-
-            // 标题与包名
-            VStack(spacing: 2) {
-                Text(app.displayTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                Text(app.packageName)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-        )
-        .onTapGesture {
-            if editing {
-                if selectedToDelete.contains(app.id) {
-                    selectedToDelete.remove(app.id)
-                } else {
-                    selectedToDelete.insert(app.id)
-                }
-            } else {
-                launchApp(app)
-            }
-        }
-        .onLongPressGesture {
-            if !editing {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    editing = true
-                }
-            }
-        }
-        .overlay(
-            editing ?
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(selectedToDelete.contains(app.id) ? Color.red : Color.blue, lineWidth: 3)
-            : nil
-        )
+        .listStyle(.plain)
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
@@ -169,60 +98,172 @@ struct MainView: View {
             case .success:
                 break
             case .hardened(let name):
-                appState.noticeMessage = "检测到加固（\(name)），暂不支持，请使用原始未加固安装包。"
+                alertMessage = "不支持加固后的 APK（检测到：\(name)），请获取原始未加固安装包。"
             case .unsigned:
-                appState.noticeMessage = "该 APK 未签名或签名失效，请先使用「签名工具」处理。"
+                alertMessage = "该 APK 未签名或签名失效，请先前往「签名」工具进行签名处理。"
             case .invalid(let reason):
-                appState.noticeMessage = "导入失败：\(reason)"
+                alertMessage = "导入失败：\(reason)"
             }
         case .failure(let error):
-            appState.noticeMessage = "选择文件失败：\(error.localizedDescription)"
+            alertMessage = "选择文件失败：\(error.localizedDescription)"
         }
-    }
-
-    private func launchApp(_ app: InstalledApp) {
-        appState.launchApp(app)
     }
 }
 
-// 星空背景动画
-struct StarFieldBackground: View {
-    @State private var animate = false
-    
+// 应用卡片：图标 + 包名 + 版本号。
+struct AppCard: View {
+    let app: InstalledApp
+
     var body: some View {
-        ZStack {
-            // 深空背景
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.0, green: 0.0, blue: 0.05)
-                ]),
-                center: .topLeading,
-                startRadius: 100,
-                endRadius: 600
-            )
-            .ignoresSafeArea()
-            
-            // 星星
-            ForEach(0..<50, id: \.self) { index in
-                let x = CGFloat.random(in: -100...400)
-                let y = CGFloat.random(in: -100...800)
-                let size = CGFloat.random(in: 1...3)
-                let opacity = Double.random(in: 0.3...0.8)
-                let scale = animate ? CGFloat.random(in: 1.0...1.5) : CGFloat.random(in: 0.5...1.0)
-                
-                Circle()
-                    .fill(Color.white.opacity(opacity))
-                    .frame(width: size, height: size)
-                    .position(x: x, y: y)
-                    .scaleEffect(scale)
-                    .opacity(animate ? 0.5 : 1.0)
+        HStack(spacing: 14) {
+            if let icon = app.icon {
+                Image(uiImage: icon)
+                    .resizable()
+                    .frame(width: 48, height: 48)
+                    .cornerRadius(10)
+            } else {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(width: 48, height: 48)
+                    .cornerRadius(10)
+                    .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(app.displayTitle).font(.headline).lineLimit(1)
+                Text(app.packageName).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                Text("版本 \(app.versionName)").font(.caption2).foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// 应用详情：完整元信息与操作入口。
+struct AppDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var appState: AppState
+    let app: InstalledApp
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 16) {
+                        if let icon = app.icon {
+                            Image(uiImage: icon)
+                                .resizable()
+                                .frame(width: 64, height: 64)
+                        } else {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 64, height: 64)
+                                .overlay(Image(systemName: "app.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(.secondary))
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(app.displayTitle).font(.title3).bold().lineLimit(1)
+                            Text(app.packageName).font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                Section("基本信息") {
+                    row("应用名称", app.displayTitle)
+                    row("包名", app.packageName)
+                    row("版本名", app.versionName)
+                    row("版本号", "\(app.versionCode)")
+                    row("签名", app.signatureSummary)
+                }
+                Section("内容") {
+                    row("文件大小", app.formattedSize)
+                    row("权限数量", "\(app.permissionCount)")
+                    row("DEX 文件", "\(app.dexCount)")
+                    row("Activity", "\(app.activityCount)")
+                    row("最低系统", androidVersionLabel(api: app.info.minSdkVersion))
+                    row("目标系统", androidVersionLabel(api: app.info.targetSdkVersion))
+                }
+                Section {
+                    Button("启动") {
+                        // 先关闭详情页，再启动并弹出运行状态页，避免多层 sheet 冲突。
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            appState.launch(app)
+                        }
+                    }
+                    .disabled(appState.isRunning)
+                    Button("导出运行日志") {
+                        appState.log.info("导出日志（\(app.packageName)）共 \(appState.log.entries.count) 条", package: app.packageName)
+                    }
+                    Button("删除", role: .destructive) {
+                        appState.delete(app)
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle(app.displayTitle)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
             }
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-                animate = true
-            }
+        .preferredColorScheme(.dark)
+    }
+
+    private func row(_ key: String, _ value: String) -> some View {
+        HStack {
+            Text(key).foregroundColor(.secondary)
+            Spacer()
+            Text(value).multilineTextAlignment(.trailing)
         }
     }
+}
+
+// 供 Alert 使用的可识别字符串包装。
+struct IdentifiableString: Identifiable {
+    let id = UUID()
+    let value: String
+}
+
+// API 等级 → Android 版本名映射（API 0 表示 Manifest 未声明/未解析）。
+func androidVersionLabel(api: UInt32) -> String {
+    let name: String
+    switch api {
+    case 0: name = "未知"
+    case 1: name = "1.0"
+    case 2: name = "1.1"
+    case 3: name = "1.5"
+    case 4: name = "1.6"
+    case 5...8: name = "2.0–2.2"
+    case 9: name = "2.3"
+    case 10: name = "2.3.3"
+    case 11...13: name = "3.x"
+    case 14: name = "4.0"
+    case 15: name = "4.0.3"
+    case 16: name = "4.1"
+    case 17: name = "4.2"
+    case 18: name = "4.3"
+    case 19: name = "4.4"
+    case 20: name = "4.4W"
+    case 21: name = "5.0"
+    case 22: name = "5.1"
+    case 23: name = "6.0"
+    case 24: name = "7.0"
+    case 25: name = "7.1"
+    case 26: name = "8.0"
+    case 27: name = "8.1"
+    case 28: name = "9"
+    case 29: name = "10"
+    case 30: name = "11"
+    case 31: name = "12"
+    case 32: name = "12L"
+    case 33: name = "13"
+    case 34: name = "14"
+    case 35: name = "15"
+    case 36: name = "16"
+    default: name = "API \(api)"
+    }
+    return api == 0 ? "未知" : "Android \(name) (API \(api))"
 }

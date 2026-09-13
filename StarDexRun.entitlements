@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 侧载签名证书必需的两项权限：大内存 + 大地址空间 -->
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
+	<key>com.apple.developer.kernel.extended-virtual-addressing</key>
+	<true/>
+	<!-- 侧载安装通常需要可取景运行的后台模式，按需开启 -->
+	<key>com.apple.developer.kernel.increased-debugging-memory-limit</key>
+	<true/>
+</dict>
+</plist>

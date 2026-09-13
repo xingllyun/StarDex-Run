@@ -332,3 +332,9 @@ struct AppDetailView: View {
         }
     }
 }
+
+// 供 Alert 使用的可识别字符串包装（MainView / SettingsView / SignToolView 共用）。
+struct IdentifiableString: Identifiable {
+    let id = UUID()
+    let value: String
+}

@@ -8,7 +8,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// 签名工具页：文件导入 → 信息预览 → 本地签名 → 输出管理与一键导入。
+// 全新设计的签名工具页
 struct SignToolView: View {
     @EnvironmentObject var appState: AppState
 
@@ -21,18 +21,27 @@ struct SignToolView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    importSection
-                    if let info = apkInfo {
-                        previewSection(info)
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [Color(red: 0.05, green: 0.05, blue: 0.1), Color.black]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        importSection
+                        if let info = apkInfo {
+                            previewSection(info)
+                        }
+                        if apkData != nil {
+                            signSection
+                        }
+                        disclaimerSection
                     }
-                    if apkData != nil {
-                        signSection
-                    }
-                    disclaimerSection
+                    .padding()
                 }
-                .padding()
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 StarDexTopBar(title: "签名工具")
@@ -52,27 +61,71 @@ struct SignToolView: View {
         }
     }
 
-    // 文件导入区。
+    // 文件导入区
     private var importSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("文件导入").font(.headline)
-            Button {
-                showImporter = true
-            } label: {
-                Label(apkData == nil ? "选择原始未签名 APK" : "重新选择 APK", systemImage: "doc.badge.plus")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("文件导入")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
             }
-            .buttonStyle(.bordered)
-            Text("支持从系统文件选择原始未签名 APK，全程本地处理。")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            
+            Button(action: {
+                showImporter = true
+            }) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.blue.opacity(0.15))
+                        Image(systemName: apkData == nil ? "doc.badge.plus" : "arrow.clockwise")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.blue)
+                    }
+                    .frame(width: 50, height: 50)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(apkData == nil ? "选择原始未签名 APK" : "重新选择 APK")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("支持从系统文件选择")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding()
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(16)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            HStack {
+                Image(systemName: "lock.shield.fill")
+                    .foregroundColor(.green.opacity(0.8))
+                Text("全程本地处理，无需联网")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.5))
+            }
         }
     }
 
-    // 信息预览区。
+    // 信息预览区
     private func previewSection(_ info: SDRApkInfo) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("信息预览").font(.headline)
-            Group {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("信息预览")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            
+            VStack(spacing: 12) {
                 infoRow("包名", info.packageName)
                 infoRow("版本名", info.versionName)
                 infoRow("版本号", "\(info.versionCode)")
@@ -80,36 +133,83 @@ struct SignToolView: View {
                 infoRow("权限数量", "\(info.permissions.count)")
                 infoRow("签名状态", sigSummary ?? "未校验")
             }
-            .font(.subheadline)
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(16)
         }
     }
 
-    // 签名操作区。
+    // 签名操作区
     private var signSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("签名操作").font(.headline)
-            Button {
-                performSign()
-            } label: {
-                Label("本地执行签名（无需联网）", systemImage: "signature")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("签名操作")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
             }
-            .buttonStyle(.borderedProminent)
+            
+            Button(action: {
+                performSign()
+            }) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.green.opacity(0.15))
+                        Image(systemName: "signature")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.green)
+                    }
+                    .frame(width: 50, height: 50)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("本地执行签名")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                        Text("无需联网，安全快捷")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding()
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(16)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
     }
 
-    // 免责提示。
+    // 免责提示
     private var disclaimerSection: some View {
-        Text("免责声明：不支持脱壳、不支持破解加固包，仅处理合法原始安装包。")
-            .font(.caption)
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity, alignment: .center)
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.shield.fill")
+                .font(.system(size: 24))
+                .foregroundColor(.orange.opacity(0.8))
+            Text("免责声明：不支持脱壳、不支持破解加固包，仅处理合法原始安装包。")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.5))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
     }
 
     private func infoRow(_ key: String, _ value: String) -> some View {
         HStack {
-            Text(key).foregroundColor(.secondary)
+            Text(key)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(.white.opacity(0.6))
             Spacer()
-            Text(value).multilineTextAlignment(.trailing)
+            Text(value)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.9))
+                .multilineTextAlignment(.trailing)
         }
     }
 

@@ -7,8 +7,7 @@
 
 import SwiftUI
 
-// 通用自定义顶栏：不依赖系统导航栏（iOS 16~27 渲染一致）。
-// 结构：第一行（可选）运行状态居中 + 右上操作按钮；第二行大标题；第三行分隔线。
+// 全新设计的自定义顶栏：保持接口不变，视觉风格全面升级
 struct StarDexTopBar: View {
     let title: String
     var statusText: String? = nil          // 状态行中央文字（如 空闲 / 运行中）
@@ -22,47 +21,69 @@ struct StarDexTopBar: View {
             if statusText != nil || trailingIcon != nil {
                 ZStack {
                     if let statusText = statusText {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             if statusDot {
                                 Circle()
                                     .fill(statusDotColor)
-                                    .frame(width: 8, height: 8)
+                                    .frame(width: 10, height: 10)
+                                    .shadow(color: statusDotColor.opacity(0.7), radius: 6, x: 0, y: 0)
                             }
                             Text(statusText)
-                                .font(.footnote)
-                                .foregroundColor(.white)
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.9))
                         }
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(height: 38)
                 .overlay(alignment: .trailing) {
                     if let trailingIcon = trailingIcon, let trailingAction = trailingAction {
                         Button(action: trailingAction) {
                             Image(systemName: trailingIcon)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.blue)
-                                .frame(width: 32, height: 32)
-                                .background(Color(white: 0.12), in: Circle())
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                                .background(
+                                    LinearGradient(
+                                        gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)]),
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .clipShape(Circle())
+                                .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
                         }
-                        .padding(.trailing, 14)
+                        .padding(.trailing, 16)
                     }
                 }
             }
 
             HStack {
                 Text(title)
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
+                    .shadow(color: Color.blue.opacity(0.3), radius: 6, x: 0, y: 4)
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
 
             Rectangle()
-                .fill(Color(white: 0.22))
-                .frame(height: 0.5)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color.clear, Color.white.opacity(0.2), Color.clear]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 1)
         }
-        .background(Color.black)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color(red: 0.06, green: 0.06, blue: 0.12), Color(red: 0.04, green: 0.04, blue: 0.08)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 }

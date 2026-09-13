@@ -7,8 +7,7 @@
 
 import SwiftUI
 
-// 应用运行状态页：实时展示启动链路各阶段进度，解决「点击启动无反应、卡死」问题。
-// 阶段顺序：校验文件 → 解析 DEX → 创建虚拟机 → 加载类与资源 → 查找入口 → 启动 Activity → 运行中。
+// 全新设计的应用运行状态页
 struct RunStateView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -19,24 +18,38 @@ struct RunStateView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        headerSection
-                        progressBar
-                        stageList
-                        recentLogSection
+            ZStack {
+                LinearGradient(
+                    gradient: Gradient(colors: [Color(red: 0.05, green: 0.05, blue: 0.1), Color.black]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            headerSection
+                            progressSection
+                            stageList
+                            recentLogSection
+                        }
+                        .padding()
                     }
-                    .padding()
+                    bottomBar
                 }
-                bottomBar
             }
-            .background(Color.black.ignoresSafeArea())
             .navigationTitle("应用运行状态")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("关闭") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("关闭")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(.blue)
+                    }
                 }
             }
             .alert("启动失败", isPresented: Binding<Bool>(
@@ -56,29 +69,43 @@ struct RunStateView: View {
 
     // 头部：应用信息 + 当前阶段。
     private var headerSection: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
             if let icon = app.icon {
                 Image(uiImage: icon)
                     .resizable()
-                    .frame(width: 52, height: 52)
-                    .cornerRadius(8)
+                    .frame(width: 64, height: 64)
+                    .cornerRadius(16)
             } else {
-                Rectangle()
-                    .fill(Color(white: 0.2))
-                    .frame(width: 52, height: 52)
-                    .cornerRadius(8)
-                    .overlay(Image(systemName: "app.fill").foregroundColor(.secondary))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.08))
+                    Image(systemName: "app.fill")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .frame(width: 64, height: 64)
             }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(app.displayTitle).font(.headline).foregroundColor(.white).lineLimit(1)
-                Text(app.packageName).font(.caption).foregroundColor(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(app.displayTitle)
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                Text(app.packageName)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.5))
+                    .lineLimit(1)
                 Text(currentStageTitle)
-                    .font(.subheadline)
-                    .foregroundColor(appState.runStage == .failed ? .red : .blue)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(appState.runStage == .failed ? .red.opacity(0.9) : .blue)
                     .lineLimit(2)
             }
             Spacer()
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.05))
+        )
     }
 
     // 当前阶段标题。
@@ -92,25 +119,52 @@ struct RunStateView: View {
         return "已「\(appState.runStage.title)」"
     }
 
-    // 线性进度条。
-    private var progressBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ProgressView(value: progressValue)
-                .progressViewStyle(.linear)
-                .tint(appState.runStage == .failed ? .red : .blue)
-            HStack {
-                Text("\(Int(progressValue * 100))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                if appState.runStage == .failed {
-                    Text("失败").font(.caption).foregroundColor(.red)
-                } else if appState.isRunning {
-                    Text("进行中…").font(.caption).foregroundColor(.blue)
-                } else {
-                    Text("完成").font(.caption).foregroundColor(.green)
+    // 进度条区域。
+    private var progressSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("启动进度")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.9))
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(0.08))
+                            .frame(height: 10)
+                        
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(appState.runStage == .failed ? Color.red.opacity(0.9) : Color.blue)
+                            .frame(width: max(0, geometry.size.width * progressValue), height: 10)
+                    }
+                }
+                .frame(height: 10)
+                
+                HStack {
+                    Text("\(Int(progressValue * 100))%")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.6))
+                    Spacer()
+                    if appState.runStage == .failed {
+                        Text("失败")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.red.opacity(0.9))
+                    } else if appState.isRunning {
+                        Text("进行中…")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.blue)
+                    } else {
+                        Text("完成")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.green.opacity(0.9))
+                    }
                 }
             }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.05))
+            )
         }
     }
 
@@ -123,9 +177,15 @@ struct RunStateView: View {
 
     // 阶段列表。
     private var stageList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(stages, id: \.self) { stage in
-                stageRow(stage)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("启动阶段")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(.white.opacity(0.9))
+            
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(stages, id: \.self) { stage in
+                    stageRow(stage)
+                }
             }
         }
     }
@@ -146,28 +206,59 @@ struct RunStateView: View {
         let isCurrent = stage == appState.runStage && appState.runStage != .failed
         let isFailedStage = appState.runStage == .failed && stageIdx == failedIdx
 
-        return HStack(spacing: 12) {
+        return HStack(spacing: 14) {
             // 状态图标
             Group {
                 if isDone || (appState.runStage == .running && stage != .running) {
-                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.15))
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.green)
+                    }
+                    .frame(width: 24, height: 24)
                 } else if isCurrent {
-                    ProgressView().progressViewStyle(.circular).scaleEffect(0.7)
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.15))
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .scaleEffect(0.8)
+                    }
+                    .frame(width: 24, height: 24)
                 } else if isFailedStage {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.red)
+                    ZStack {
+                        Circle()
+                            .fill(Color.red.opacity(0.15))
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.red.opacity(0.9))
+                    }
+                    .frame(width: 24, height: 24)
                 } else {
-                    Image(systemName: "circle").foregroundColor(Color(white: 0.35))
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.08))
+                        Image(systemName: "circle")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.2))
+                    }
+                    .frame(width: 24, height: 24)
                 }
             }
-            .frame(width: 20, height: 20)
 
             Text("\(stageIndexText(stageIdx)). \(stage.title)")
-                .font(.subheadline)
-                .foregroundColor(isCurrent ? .white : (isDone ? .green.opacity(0.8) : (isFailedStage ? .red : .secondary)))
+                .font(.system(size: 15, weight: isCurrent ? .semibold : .medium, design: .rounded))
+                .foregroundColor(isCurrent ? .white : (isDone ? .green.opacity(0.8) : (isFailedStage ? .red.opacity(0.9) : .white.opacity(0.4))))
 
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isCurrent ? Color.blue.opacity(0.1) : (isFailedStage ? Color.red.opacity(0.1) : Color.white.opacity(0.03)))
+        )
     }
 
     private func stageIndexText(_ idx: Int) -> String {
@@ -176,21 +267,44 @@ struct RunStateView: View {
 
     // 最近日志（按当前运行包过滤）。
     private var recentLogSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("最近日志").font(.headline).foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("最近日志")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundColor(.white.opacity(0.9))
+            
             let logs = appState.log.entries.filter { $0.package == app.packageName }.suffix(20)
             if logs.isEmpty {
-                Text("暂无日志").font(.caption).foregroundColor(.secondary)
+                HStack {
+                    Image(systemName: "tray")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.2))
+                    Text("暂无日志")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.3))
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.03))
+                )
             } else {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(logs)) { entry in
-                        HStack(alignment: .top, spacing: 6) {
-                            Text(shortTime(entry.timestamp)).foregroundColor(.gray)
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(shortTime(entry.timestamp))
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.3))
                             Text(entry.message)
+                                .font(.system(.caption, design: .monospaced))
                                 .foregroundColor(color(for: entry.level))
                                 .lineLimit(2)
                         }
-                        .font(.system(.caption2, design: .monospaced))
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.white.opacity(0.03))
+                        )
                     }
                 }
             }
@@ -204,32 +318,55 @@ struct RunStateView: View {
                 appState.stopRun()
                 dismiss()
             } label: {
-                Label("停止运行", systemImage: "stop.circle")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    Image(systemName: "stop.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("停止运行")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
             }
-            .buttonStyle(.bordered)
-            .tint(.red)
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.red.opacity(0.15))
+            )
+            .foregroundColor(.red.opacity(0.9))
 
             Button {
                 dismiss()
             } label: {
-                Label("查看实时日志", systemImage: "terminal")
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("查看实时日志")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
             }
-            .buttonStyle(.bordered)
-            .tint(.blue)
+            .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.blue.opacity(0.15))
+            )
+            .foregroundColor(.blue)
         }
         .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(Color.black.opacity(0.9))
+        .padding(.vertical, 14)
+        .background(
+            Color(red: 0.05, green: 0.05, blue: 0.1)
+                .opacity(0.95)
+        )
     }
 
     private func color(for level: LogLevel) -> Color {
         switch level {
-        case .debug: return .gray
+        case .debug: return .white.opacity(0.4)
         case .info:  return .white
         case .warn:  return .yellow
-        case .error: return .red
+        case .error: return .red.opacity(0.9)
         case .fatal: return .orange
         }
     }
